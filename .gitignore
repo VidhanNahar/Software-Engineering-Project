@@ -1,0 +1,15 @@
+node_modules/
+dist/
+build/
+.env
+
+# Backend
+backend/cpp/build/
+backend/go/backend-go
+
+# OS generated files
+.DS_Store
+*.exe
+*.o
+*.so
+*.dylib
