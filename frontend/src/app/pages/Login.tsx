@@ -60,7 +60,7 @@ export default function Login() {
 
       <div className="w-full max-w-md">
         {/* Centered Login Card */}
-        <Card className="w-full">
+        <Card className="w-full text-white bg-gray-900 border-gray-800">
           <CardHeader className="text-center space-y-4">
             <div className="flex items-center justify-center gap-3">
               <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
@@ -68,7 +68,7 @@ export default function Login() {
               </div>
             </div>
             <div>
-              <CardTitle className="text-2xl">Welcome to TradeHub</CardTitle>
+              <CardTitle className="text-2xl text-white">Welcome to TradeHub</CardTitle>
               <CardDescription>
                 Sign in to your trading account to continue
               </CardDescription>
@@ -109,12 +109,12 @@ export default function Login() {
                   <div className="w-full border-t border-border"></div>
                 </div>
                 <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-card text-muted-foreground">Or continue with email</span>
+                  <span className="px-2 bg-card text-gray-300">Or continue with email</span>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
+                <Label className="text-white" htmlFor="email">Email Address</Label>
                 <Input
                   id="email"
                   type="email"
@@ -125,7 +125,7 @@ export default function Login() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label className="text-white" htmlFor="password">Password</Label>
                 <div className="relative">
                   <Input
                     id="password"
@@ -137,7 +137,7 @@ export default function Login() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-200"
                   >
                     {showPassword ? (
                       <EyeOff className="w-5 h-5" />
@@ -151,7 +151,7 @@ export default function Login() {
               <div className="flex items-center justify-between">
                 <label className="flex items-center gap-2 text-sm">
                   <input type="checkbox" className="rounded" />
-                  <span className="text-gray-600">Remember me</span>
+                  <span className="text-gray-300">Remember me</span>
                 </label>
                 <button
                   type="button"
@@ -175,7 +175,7 @@ export default function Login() {
                 Try Demo Account
               </Button>
 
-              <p className="text-center text-sm text-muted-foreground mt-4">
+              <p className="text-center text-sm text-gray-300 mt-4">
                 Don't have an account?{" "}
                 <button
                   type="button"

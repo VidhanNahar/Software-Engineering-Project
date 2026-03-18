@@ -76,7 +76,7 @@ export default function StockDetails() {
   if (!stock || !symbol) {
     return (
       <div className="flex items-center justify-center h-96">
-        <p className="text-gray-600">Stock not found</p>
+        <p className="text-gray-300">Stock not found</p>
       </div>
     );
   }
@@ -110,15 +110,15 @@ export default function StockDetails() {
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-4xl font-bold text-gray-900">{stock.symbol}</h1>
+            <h1 className="text-4xl font-bold text-white">{stock.symbol}</h1>
             <Button variant="ghost" size="icon">
               <Star className="w-5 h-5 text-yellow-500 fill-yellow-500" />
             </Button>
           </div>
-          <p className="text-gray-600 mt-1">{stock.name}</p>
+          <p className="text-gray-300 mt-1">{stock.name}</p>
         </div>
         <div className="text-right">
-          <p className="text-4xl font-bold text-gray-900">${stock.price.toFixed(2)}</p>
+          <p className="text-4xl font-bold text-white">${stock.price.toFixed(2)}</p>
           <div
             className={`flex items-center gap-2 justify-end mt-1 ${
               stock.change >= 0 ? "text-green-600" : "text-red-600"
@@ -140,34 +140,34 @@ export default function StockDetails() {
 
       {/* Stock Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
+        <Card className="text-white">
           <CardContent className="p-4">
-            <p className="text-sm text-gray-600">Open</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1">
+            <p className="text-sm text-gray-300">Open</p>
+            <p className="text-xl font-semibold text-white mt-1">
               ${stock.open.toFixed(2)}
             </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="text-white">
           <CardContent className="p-4">
-            <p className="text-sm text-gray-600">High</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1">
+            <p className="text-sm text-gray-300">High</p>
+            <p className="text-xl font-semibold text-white mt-1">
               ${stock.high.toFixed(2)}
             </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="text-white">
           <CardContent className="p-4">
-            <p className="text-sm text-gray-600">Low</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1">
+            <p className="text-sm text-gray-300">Low</p>
+            <p className="text-xl font-semibold text-white mt-1">
               ${stock.low.toFixed(2)}
             </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="text-white">
           <CardContent className="p-4">
-            <p className="text-sm text-gray-600">Volume</p>
-            <p className="text-xl font-semibold text-gray-900 mt-1">
+            <p className="text-sm text-gray-300">Volume</p>
+            <p className="text-xl font-semibold text-white mt-1">
               {(stock.volume / 1000000).toFixed(2)}M
             </p>
           </CardContent>
@@ -177,10 +177,10 @@ export default function StockDetails() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Chart */}
         <div className="lg:col-span-2">
-          <Card>
+          <Card className="text-white">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>Price Chart</CardTitle>
+                <CardTitle className="text-white">Price Chart</CardTitle>
                 <div className="flex gap-2">
                   {(["1D", "5D", "1M", "6M", "1Y"] as const).map((period) => (
                     <Button
@@ -215,11 +215,11 @@ export default function StockDetails() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="time" stroke="#6b7280" />
                   <YAxis domain={["auto", "auto"]} stroke="#6b7280" />
-                  <Tooltip
+                  <Tooltip cursor={{ fill: "transparent" }} itemStyle={{ color: "white" }} labelStyle={{ color: "white" }}
                     contentStyle={{
-                      backgroundColor: "#fff",
-                      border: "1px solid #e5e7eb",
-                      borderRadius: "8px",
+                      backgroundColor: "#1f2937",
+                      border: "1px solid white", color: "white",
+                      borderRadius: "8px"
                     }}
                   />
                   <Area
@@ -235,9 +235,9 @@ export default function StockDetails() {
           </Card>
 
           {/* Trading Actions */}
-          <Card className="mt-6">
+          <Card className="mt-6 text-white">
             <CardHeader>
-              <CardTitle>Trade {stock.symbol}</CardTitle>
+              <CardTitle className="text-white">Trade {stock.symbol}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-4">
@@ -267,35 +267,35 @@ export default function StockDetails() {
 
         {/* Order Book & Stats */}
         <div className="space-y-6">
-          <Card>
+          <Card className="text-white">
             <CardHeader>
-              <CardTitle>Market Stats</CardTitle>
+              <CardTitle className="text-white">Market Stats</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex justify-between">
-                <span className="text-gray-600">Market Cap</span>
+                <span className="text-gray-300">Market Cap</span>
                 <span className="font-semibold">
                   ${(stock.marketCap / 1000000000000).toFixed(2)}T
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Prev Close</span>
+                <span className="text-gray-300">Prev Close</span>
                 <span className="font-semibold">${stock.previousClose.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Volume</span>
+                <span className="text-gray-300">Volume</span>
                 <span className="font-semibold">
                   {(stock.volume / 1000000).toFixed(2)}M
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">52W High</span>
+                <span className="text-gray-300">52W High</span>
                 <span className="font-semibold">
                   ${(stock.price * 1.15).toFixed(2)}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">52W Low</span>
+                <span className="text-gray-300">52W Low</span>
                 <span className="font-semibold">
                   ${(stock.price * 0.75).toFixed(2)}
                 </span>
@@ -303,9 +303,9 @@ export default function StockDetails() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="text-white">
             <CardHeader>
-              <CardTitle>Order Book</CardTitle>
+              <CardTitle className="text-white">Order Book</CardTitle>
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="bids">
@@ -314,7 +314,7 @@ export default function StockDetails() {
                   <TabsTrigger value="asks">Asks</TabsTrigger>
                 </TabsList>
                 <TabsContent value="bids" className="space-y-2 mt-4">
-                  <div className="text-xs text-gray-600 grid grid-cols-3 gap-2 pb-2 border-b">
+                  <div className="text-xs text-gray-300 grid grid-cols-3 gap-2 pb-2 border-b">
                     <span>Price</span>
                     <span className="text-right">Quantity</span>
                     <span className="text-right">Total</span>
@@ -324,15 +324,15 @@ export default function StockDetails() {
                       <span className="text-green-600 font-medium">
                         ${bid.price.toFixed(2)}
                       </span>
-                      <span className="text-right text-gray-700">{bid.quantity}</span>
-                      <span className="text-right text-gray-700">
+                      <span className="text-right text-gray-200">{bid.quantity}</span>
+                      <span className="text-right text-gray-200">
                         ${bid.total.toFixed(0)}
                       </span>
                     </div>
                   ))}
                 </TabsContent>
                 <TabsContent value="asks" className="space-y-2 mt-4">
-                  <div className="text-xs text-gray-600 grid grid-cols-3 gap-2 pb-2 border-b">
+                  <div className="text-xs text-gray-300 grid grid-cols-3 gap-2 pb-2 border-b">
                     <span>Price</span>
                     <span className="text-right">Quantity</span>
                     <span className="text-right">Total</span>
@@ -342,8 +342,8 @@ export default function StockDetails() {
                       <span className="text-red-600 font-medium">
                         ${ask.price.toFixed(2)}
                       </span>
-                      <span className="text-right text-gray-700">{ask.quantity}</span>
-                      <span className="text-right text-gray-700">
+                      <span className="text-right text-gray-200">{ask.quantity}</span>
+                      <span className="text-right text-gray-200">
                         ${ask.total.toFixed(0)}
                       </span>
                     </div>

@@ -56,8 +56,8 @@ export default function MarketOverview() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Market Overview</h1>
-        <p className="text-gray-600 mt-1">Real-time market data and analytics</p>
+        <h1 className="text-3xl font-bold text-white">Market Overview</h1>
+        <p className="text-gray-300 mt-1">Real-time market data and analytics</p>
       </div>
 
       {/* Market Indices */}
@@ -65,8 +65,8 @@ export default function MarketOverview() {
         {marketIndices.map((index) => (
           <Card key={index.name}>
             <CardContent className="p-6">
-              <p className="text-sm text-gray-600">{index.name}</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">
+              <p className="text-sm text-gray-300">{index.name}</p>
+              <p className="text-2xl font-bold text-white mt-1">
                 {index.value.toLocaleString("en-US", { minimumFractionDigits: 2 })}
               </p>
               <div
@@ -91,9 +91,9 @@ export default function MarketOverview() {
       </div>
 
       {/* Sector Performance */}
-      <Card>
+      <Card className="text-white">
         <CardHeader>
-          <CardTitle>Sector Performance</CardTitle>
+          <CardTitle className="text-white">Sector Performance</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
@@ -101,14 +101,14 @@ export default function MarketOverview() {
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis dataKey="sector" stroke="#6b7280" />
               <YAxis stroke="#6b7280" />
-              <Tooltip
+              <Tooltip cursor={{ fill: "transparent" }} itemStyle={{ color: "white" }} labelStyle={{ color: "white" }}
                 contentStyle={{
-                  backgroundColor: "#fff",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "8px",
+                  backgroundColor: "#1f2937",
+                  border: "1px solid white", color: "white",
+                  borderRadius: "8px"
                 }}
               />
-              <Bar dataKey="change" radius={[8, 8, 0, 0]}>
+              <Bar dataKey="change" radius={[8, 8, 0, 0]} activeBar={{ stroke: "white", strokeWidth: 2 }}>
                 {sectorPerformance.map((entry) => (
                   <Cell key={`cell-${entry.sector}`} fill={entry.change >= 0 ? "#10b981" : "#ef4444"} />
                 ))}
@@ -120,9 +120,9 @@ export default function MarketOverview() {
 
       {/* Market Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
+        <Card className="text-white">
           <CardHeader>
-            <CardTitle>Market Volume</CardTitle>
+            <CardTitle className="text-white">Market Volume</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={250}>
@@ -130,28 +130,28 @@ export default function MarketOverview() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis dataKey="time" stroke="#6b7280" />
                 <YAxis stroke="#6b7280" />
-                <Tooltip
+                <Tooltip cursor={{ fill: "transparent" }} itemStyle={{ color: "white" }} labelStyle={{ color: "white" }}
                   contentStyle={{
-                    backgroundColor: "#fff",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: "8px",
+                    backgroundColor: "#1f2937",
+                    border: "1px solid white", color: "white",
+                    borderRadius: "8px"
                   }}
                 />
-                <Bar dataKey="volume" fill="#3b82f6" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="volume" fill="#3b82f6" radius={[8, 8, 0, 0]} activeBar={{ stroke: "white", strokeWidth: 2 }} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="text-white">
           <CardHeader>
-            <CardTitle>Market Breadth</CardTitle>
+            <CardTitle className="text-white">Market Breadth</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
               <div>
                 <div className="flex justify-between mb-2">
-                  <span className="text-sm text-gray-600">Advancing</span>
+                  <span className="text-sm text-gray-300">Advancing</span>
                   <span className="text-sm font-semibold text-green-600">1,845 stocks</span>
                 </div>
                 <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
@@ -160,7 +160,7 @@ export default function MarketOverview() {
               </div>
               <div>
                 <div className="flex justify-between mb-2">
-                  <span className="text-sm text-gray-600">Declining</span>
+                  <span className="text-sm text-gray-300">Declining</span>
                   <span className="text-sm font-semibold text-red-600">992 stocks</span>
                 </div>
                 <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
@@ -169,16 +169,16 @@ export default function MarketOverview() {
               </div>
               <div className="pt-4 border-t space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">New Highs</span>
-                  <span className="font-semibold text-gray-900">234</span>
+                  <span className="text-gray-300">New Highs</span>
+                  <span className="font-semibold text-white">234</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">New Lows</span>
-                  <span className="font-semibold text-gray-900">45</span>
+                  <span className="text-gray-300">New Lows</span>
+                  <span className="font-semibold text-white">45</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Unchanged</span>
-                  <span className="font-semibold text-gray-900">163</span>
+                  <span className="text-gray-300">Unchanged</span>
+                  <span className="font-semibold text-white">163</span>
                 </div>
               </div>
             </div>
@@ -204,21 +204,21 @@ export default function MarketOverview() {
         </TabsList>
 
         <TabsContent value="overview">
-          <Card>
+          <Card className="text-white">
             <CardContent className="pt-6">
               <div className="space-y-3">
                 {gainers.map((stock) => (
                   <div
                     key={stock.symbol}
-                    className="flex items-center justify-between p-4 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
+                    className="flex items-center justify-between p-4 border border-transparent hover:border-white hover:bg-transparent rounded-lg cursor-pointer transition-colors"
                     onClick={() => navigate(`/stock/${stock.symbol}`)}
                   >
                     <div>
-                      <p className="font-semibold text-gray-900">{stock.symbol}</p>
-                      <p className="text-sm text-gray-600">{stock.name}</p>
+                      <p className="font-semibold text-white">{stock.symbol}</p>
+                      <p className="text-sm text-gray-300">{stock.name}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold text-gray-900">${stock.price.toFixed(2)}</p>
+                      <p className="font-semibold text-white">${stock.price.toFixed(2)}</p>
                       <div className="flex items-center gap-1 text-green-600">
                         <ArrowUpRight className="w-4 h-4" />
                         <span className="text-sm font-semibold">
@@ -234,21 +234,21 @@ export default function MarketOverview() {
         </TabsContent>
 
         <TabsContent value="losers">
-          <Card>
+          <Card className="text-white">
             <CardContent className="pt-6">
               <div className="space-y-3">
                 {losers.map((stock) => (
                   <div
                     key={stock.symbol}
-                    className="flex items-center justify-between p-4 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
+                    className="flex items-center justify-between p-4 border border-transparent hover:border-white hover:bg-transparent rounded-lg cursor-pointer transition-colors"
                     onClick={() => navigate(`/stock/${stock.symbol}`)}
                   >
                     <div>
-                      <p className="font-semibold text-gray-900">{stock.symbol}</p>
-                      <p className="text-sm text-gray-600">{stock.name}</p>
+                      <p className="font-semibold text-white">{stock.symbol}</p>
+                      <p className="text-sm text-gray-300">{stock.name}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold text-gray-900">${stock.price.toFixed(2)}</p>
+                      <p className="font-semibold text-white">${stock.price.toFixed(2)}</p>
                       <div className="flex items-center gap-1 text-red-600">
                         <ArrowDownRight className="w-4 h-4" />
                         <span className="text-sm font-semibold">
@@ -264,24 +264,24 @@ export default function MarketOverview() {
         </TabsContent>
 
         <TabsContent value="active">
-          <Card>
+          <Card className="text-white">
             <CardContent className="pt-6">
               <div className="space-y-3">
                 {mostActive.map((stock) => (
                   <div
                     key={stock.symbol}
-                    className="flex items-center justify-between p-4 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
+                    className="flex items-center justify-between p-4 border border-transparent hover:border-white hover:bg-transparent rounded-lg cursor-pointer transition-colors"
                     onClick={() => navigate(`/stock/${stock.symbol}`)}
                   >
                     <div>
-                      <p className="font-semibold text-gray-900">{stock.symbol}</p>
-                      <p className="text-sm text-gray-600">{stock.name}</p>
+                      <p className="font-semibold text-white">{stock.symbol}</p>
+                      <p className="text-sm text-gray-300">{stock.name}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold text-gray-900">
+                      <p className="font-semibold text-white">
                         {(stock.volume / 1000000).toFixed(2)}M
                       </p>
-                      <p className="text-sm text-gray-600">Volume</p>
+                      <p className="text-sm text-gray-300">Volume</p>
                     </div>
                   </div>
                 ))}

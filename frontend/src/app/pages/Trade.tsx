@@ -57,16 +57,16 @@ export default function Trade() {
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Trade</h1>
-        <p className="text-gray-600 mt-1">Place buy or sell orders</p>
+        <h1 className="text-3xl font-bold text-white">Trade</h1>
+        <p className="text-gray-300 mt-1">Place buy or sell orders</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Order Form */}
         <div className="lg:col-span-2">
-          <Card>
+          <Card className="text-white">
             <CardHeader>
-              <CardTitle>Place Order</CardTitle>
+              <CardTitle className="text-white">Place Order</CardTitle>
             </CardHeader>
             <CardContent>
               <Tabs value={orderType} onValueChange={(v) => setOrderType(v as "buy" | "sell")}>
@@ -117,51 +117,51 @@ export default function Trade() {
 
         {/* Order Summary */}
         <div className="space-y-6">
-          <Card>
+          <Card className="text-white">
             <CardHeader>
-              <CardTitle>Order Summary</CardTitle>
+              <CardTitle className="text-white">Order Summary</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {stock && (
                 <>
                   <div>
-                    <p className="text-sm text-gray-600">Stock</p>
-                    <p className="text-xl font-bold text-gray-900">{symbol}</p>
-                    <p className="text-sm text-gray-600">{stock.name}</p>
+                    <p className="text-sm text-gray-300">Stock</p>
+                    <p className="text-xl font-bold text-white">{symbol}</p>
+                    <p className="text-sm text-gray-300">{stock.name}</p>
                   </div>
 
                   <div className="border-t pt-4 space-y-3">
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Current Price</span>
-                      <span className="font-semibold">${stock.price.toFixed(2)}</span>
+                      <span className="text-gray-300">Current Price</span>
+                      <span className="font-semibold text-white">${stock.price.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Quantity</span>
-                      <span className="font-semibold">{qty}</span>
+                      <span className="text-gray-300">Quantity</span>
+                      <span className="font-semibold text-white">{qty}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Order Price</span>
-                      <span className="font-semibold">
+                      <span className="text-gray-300">Order Price</span>
+                      <span className="font-semibold text-white">
                         ${price.toFixed(2)}
                         {orderMode === "market" && " (Market)"}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Subtotal</span>
-                      <span className="font-semibold">
+                      <span className="text-gray-300">Subtotal</span>
+                      <span className="font-semibold text-white">
                         ${total.toFixed(2)}
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Est. Fee (0.1%)</span>
-                      <span className="text-gray-600">${estimatedFee.toFixed(2)}</span>
+                      <span className="text-gray-300">Est. Fee (0.1%)</span>
+                      <span className="text-gray-300">${estimatedFee.toFixed(2)}</span>
                     </div>
                   </div>
 
                   <div className="border-t pt-4">
                     <div className="flex justify-between items-center">
-                      <span className="text-lg font-semibold text-gray-900">Total</span>
-                      <span className="text-2xl font-bold text-gray-900">
+                      <span className="text-lg font-semibold text-white">Total</span>
+                      <span className="text-2xl font-bold text-white">
                         ${totalWithFee.toFixed(2)}
                       </span>
                     </div>
@@ -182,13 +182,13 @@ export default function Trade() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="text-white">
             <CardContent className="p-4">
               <div className="flex gap-2">
                 <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-gray-600">
-                  <p className="font-semibold text-gray-900 mb-1">Trading Information</p>
-                  <p>Market orders execute at current market price. Limit orders execute only at your specified price or better.</p>
+                <div className="text-sm text-gray-300">
+                  <p className="font-semibold text-white mb-1">Trading Information</p>
+                  <p className="text-gray-300">Market orders execute at current market price. Limit orders execute only at your specified price or better.</p>
                 </div>
               </div>
             </CardContent>
@@ -197,9 +197,9 @@ export default function Trade() {
       </div>
 
       {/* Quick Trade Buttons */}
-      <Card>
+      <Card className="text-white">
         <CardHeader>
-          <CardTitle>Quick Trade</CardTitle>
+          <CardTitle className="text-white">Quick Trade</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -248,7 +248,7 @@ function OrderForm({
   return (
     <>
       <div className="space-y-2">
-        <Label htmlFor="symbol">Symbol</Label>
+        <Label className="text-white" htmlFor="symbol">Symbol</Label>
         <Select value={symbol} onValueChange={setSymbol}>
           <SelectTrigger>
             <SelectValue />
@@ -264,7 +264,7 @@ function OrderForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="orderMode">Order Type</Label>
+        <Label className="text-white" htmlFor="orderMode">Order Type</Label>
         <Select value={orderMode} onValueChange={(v) => setOrderMode(v as "market" | "limit")}>
           <SelectTrigger>
             <SelectValue />
@@ -277,7 +277,7 @@ function OrderForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="quantity">Quantity</Label>
+        <Label className="text-white" htmlFor="quantity">Quantity</Label>
         <Input
           id="quantity"
           type="number"
@@ -290,7 +290,7 @@ function OrderForm({
 
       {orderMode === "limit" && (
         <div className="space-y-2">
-          <Label htmlFor="limitPrice">Limit Price</Label>
+          <Label className="text-white" htmlFor="limitPrice">Limit Price</Label>
           <Input
             id="limitPrice"
             type="number"
@@ -304,7 +304,7 @@ function OrderForm({
       )}
 
       <div className="space-y-2">
-        <Label htmlFor="timeInForce">Time in Force</Label>
+        <Label className="text-white" htmlFor="timeInForce">Time in Force</Label>
         <Select value={timeInForce} onValueChange={setTimeInForce}>
           <SelectTrigger>
             <SelectValue />
