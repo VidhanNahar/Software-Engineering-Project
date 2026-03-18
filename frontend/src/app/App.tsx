@@ -1,7 +1,7 @@
 import { RouterProvider } from "react-router";
-import { router } from "./app/routes.tsx";
+import { router } from "./routes.tsx";
 import { Toaster } from "sonner";
-import { ThemeProvider } from "./app/context/ThemeContext";
+import { ThemeProvider } from "./context/ThemeContext";
 
 export default function App() {
   return (
