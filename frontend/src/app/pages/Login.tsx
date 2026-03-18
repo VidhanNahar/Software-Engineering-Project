@@ -1,38 +1,19 @@
-import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Label } from "../components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
-import { TrendingUp, Eye, EyeOff, Moon, Sun } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
+import { TrendingUp, Moon, Sun } from "lucide-react";
 import { toast } from "sonner";
 import { useTheme } from "../context/ThemeContext";
 
 export default function Login() {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
-  const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Mock login - in real app, this would validate credentials
-    if (email && password) {
-      localStorage.setItem("isLoggedIn", "true");
-      toast.success("Login successful!");
-      navigate("/");
-    } else {
-      toast.error("Please enter email and password");
-    }
-  };
-
-  const handleDemoLogin = () => {
-    localStorage.setItem("isLoggedIn", "true");
-    toast.success("Logged in with demo account");
-    navigate("/");
-  };
 
   const handleGoogleLogin = () => {
     // Mock Google login - in real app, this would integrate with Google OAuth
@@ -49,7 +30,9 @@ export default function Login() {
         size="icon"
         onClick={toggleTheme}
         className="absolute top-4 right-4"
-        title={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+        title={
+          theme === "light" ? "Switch to dark mode" : "Switch to light mode"
+        }
       >
         {theme === "light" ? (
           <Moon className="w-5 h-5" />
@@ -68,14 +51,16 @@ export default function Login() {
               </div>
             </div>
             <div>
-              <CardTitle className="text-2xl text-white">Welcome to TradeHub</CardTitle>
+              <CardTitle className="text-2xl text-white">
+                Welcome to TradeHub
+              </CardTitle>
               <CardDescription>
                 Sign in to your trading account to continue
               </CardDescription>
             </div>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-4">
               {/* Google Sign In Button */}
               <Button
                 type="button"
@@ -103,89 +88,7 @@ export default function Login() {
                 </svg>
                 Continue with Google
               </Button>
-
-              <div className="relative my-6">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-border"></div>
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-card text-gray-300">Or continue with email</span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-white" htmlFor="email">Email Address</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="trader@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-white" htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-200"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-5 h-5" />
-                    ) : (
-                      <Eye className="w-5 h-5" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" className="rounded" />
-                  <span className="text-gray-300">Remember me</span>
-                </label>
-                <button
-                  type="button"
-                  className="text-sm text-blue-600 hover:text-blue-700"
-                  onClick={() => toast.info("Password reset coming soon")}
-                >
-                  Forgot password?
-                </button>
-              </div>
-
-              <Button type="submit" className="w-full">
-                Sign In
-              </Button>
-
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={handleDemoLogin}
-              >
-                Try Demo Account
-              </Button>
-
-              <p className="text-center text-sm text-gray-300 mt-4">
-                Don't have an account?{" "}
-                <button
-                  type="button"
-                  className="text-blue-600 hover:text-blue-700 font-medium"
-                  onClick={() => toast.info("Registration coming soon")}
-                >
-                  Sign up
-                </button>
-              </p>
-            </form>
+            </div>
           </CardContent>
         </Card>
       </div>
