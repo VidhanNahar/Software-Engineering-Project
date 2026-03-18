@@ -13,3 +13,4 @@ backend/go/backend-go
 *.o
 *.so
 *.dylib
+*.pdf
