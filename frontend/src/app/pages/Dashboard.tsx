@@ -1,255 +1,293 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { ArrowUpRight, ArrowDownRight, TrendingUp, Plus, Star } from "lucide-react";
-import { defaultWatchlist, defaultPortfolio, simulatePriceUpdate } from "../utils/mockData";
-import { WatchlistItem, PortfolioHolding } from "../types/stock";
+import {
+  ArrowUpRight,
+  ArrowDownRight,
+  TrendingUp,
+  Plus,
+  Star,
+  Loader2,
+} from "lucide-react";
+import { portfolioApi, watchlistApi, stockApi, walletApi } from "../api";
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [watchlist, setWatchlist] = useState<WatchlistItem[]>(defaultWatchlist);
-  const [portfolio] = useState<PortfolioHolding[]>(defaultPortfolio);
+  const [watchlist, setWatchlist] = useState<any[]>([]);
+  const [portfolio, setPortfolio] = useState<any[]>([]);
+  const [wallet, setWallet] = useState<any>({ balance: 0 });
+  const [loading, setLoading] = useState(true);
 
-  // Simulate real-time price updates
   useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        // Fetch real data from backend, catch errors to allow partial loads
+        const [portRes, watchRes, walletRes, stocksRes] = await Promise.all([
+          portfolioApi.get().catch(() => ({ holdings: [] })),
+          watchlistApi.get().catch(() => ({ watchlist: [] })),
+          walletApi.get().catch(() => ({ balance: 0 })),
+          stockApi.getAll().catch(() => ({ stocks: [] })),
+        ]);
+
+        const holdings = portRes?.holdings || [];
+        setPortfolio(holdings);
+        setWallet(walletRes || { balance: 0 });
+
+        let watchItems = watchRes?.watchlist || [];
+
+        // If user has no watchlist yet, show some suggested stocks from the DB
+        if (watchItems.length === 0 && stocksRes?.stocks?.length > 0) {
+          watchItems = stocksRes.stocks.slice(0, 5).map((s: any) => {
+            const pseudoChange = ((s.symbol.length * 7) % 10) - 5;
+            return {
+              ...s,
+              isSuggested: true,
+              change: pseudoChange || 1.2,
+              changePercent: (pseudoChange / s.price) * 100 || 0.8,
+            };
+          });
+        } else {
+          watchItems = watchItems.map((s: any) => ({
+            ...s,
+            change: s.change || Math.random() * 10 - 5,
+            changePercent: s.changePercent || Math.random() * 5 - 2.5,
+          }));
+        }
+
+        setWatchlist(watchItems);
+      } catch (error) {
+        console.error("Failed to load dashboard data", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+
+    // Simulate real-time price updates for the UI
     const interval = setInterval(() => {
       setWatchlist((prev) =>
         prev.map((item) => {
-          const newPrice = simulatePriceUpdate(item.price);
-          const change = newPrice - item.price;
-          const changePercent = (change / item.price) * 100;
+          const changeDelta = (Math.random() - 0.5) * 2;
+          const newPrice = Math.max(0.01, item.price + changeDelta);
+          const change = item.change + changeDelta;
+          const changePercent = (change / (item.price - item.change)) * 100;
           return {
             ...item,
             price: newPrice,
             change: parseFloat(change.toFixed(2)),
             changePercent: parseFloat(changePercent.toFixed(2)),
           };
-        })
+        }),
       );
-    }, 3000);
+    }, 5000);
 
     return () => clearInterval(interval);
   }, []);
 
-  const totalPortfolioValue = portfolio.reduce((sum, holding) => sum + holding.totalValue, 0);
-  const totalGainLoss = portfolio.reduce((sum, holding) => sum + holding.totalGainLoss, 0);
-  const portfolioGainLossPercent = (totalGainLoss / (totalPortfolioValue - totalGainLoss)) * 100;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      </div>
+    );
+  }
 
-  const marketStats = [
-    { name: "S&P 500", value: "5,234.18", change: "+0.87%", isPositive: true },
-    { name: "Dow Jones", value: "38,905.66", change: "+1.24%", isPositive: true },
-    { name: "NASDAQ", value: "16,315.70", change: "-0.23%", isPositive: false },
-  ];
+  // Calculate portfolio totals
+  const totalValue = portfolio.reduce(
+    (sum, item) => sum + item.quantity * item.currentPrice,
+    0,
+  );
+  const totalInvested = portfolio.reduce(
+    (sum, item) => sum + item.quantity * item.avgPrice,
+    0,
+  );
+  const totalGainLoss = totalValue - totalInvested;
+  const returnPercent =
+    totalInvested > 0 ? (totalGainLoss / totalInvested) * 100 : 0;
 
   return (
-    <div className="space-y-6">
-      {/* Welcome Header */}
+    <div className="space-y-6 text-white">
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Welcome back, John. Here's your trading overview.</p>
+        <h1 className="text-3xl font-bold text-white">Dashboard</h1>
+        <p className="text-gray-300 mt-1">
+          Welcome back. Here's your trading overview.
+        </p>
       </div>
 
-      {/* Market Indices */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {marketStats.map((stat) => (
-          <Card key={stat.name}>
-            <CardContent className="p-6">
-              <p className="text-sm text-muted-foreground">{stat.name}</p>
-              <p className="text-2xl font-bold text-foreground mt-1">{stat.value}</p>
-              <p
-                className={`text-sm mt-1 ${
-                  stat.isPositive ? "text-green-600" : "text-red-600"
-                }`}
+        <Card className="text-white">
+          <CardContent className="p-6">
+            <p className="text-sm text-gray-300">Wallet Balance</p>
+            <p className="text-2xl font-bold text-white mt-1">
+              $
+              {wallet.balance.toLocaleString("en-US", {
+                minimumFractionDigits: 2,
+              })}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="text-white">
+          <CardContent className="p-6">
+            <p className="text-sm text-gray-300">Total Portfolio Value</p>
+            <p className="text-2xl font-bold text-white mt-1">
+              $
+              {totalValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="text-white">
+          <CardContent className="p-6">
+            <p className="text-sm text-gray-300">Today's Return</p>
+            <p
+              className={`text-2xl font-bold mt-1 ${totalGainLoss >= 0 ? "text-green-500" : "text-red-500"}`}
+            >
+              {totalGainLoss >= 0 ? "+" : ""}$
+              {totalGainLoss.toLocaleString("en-US", {
+                minimumFractionDigits: 2,
+              })}
+              <span className="text-sm ml-2">
+                ({returnPercent >= 0 ? "+" : ""}
+                {returnPercent.toFixed(2)}%)
+              </span>
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <Card className="text-white">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-white">Your Portfolio</CardTitle>
+                <p className="text-sm text-gray-300 mt-1">
+                  Your investment performance
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                className="text-gray-900 dark:text-white"
+                onClick={() => navigate("/portfolio")}
               >
-                {stat.change}
-              </p>
+                View All
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {portfolio.length === 0 ? (
+                <div className="text-center py-8">
+                  <TrendingUp className="w-12 h-12 text-gray-600 mx-auto mb-3" />
+                  <p className="text-gray-300">Your portfolio is empty.</p>
+                  <Button
+                    className="mt-4 bg-blue-600 hover:bg-blue-700 text-white"
+                    onClick={() => navigate("/market")}
+                  >
+                    Explore Market
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {portfolio.slice(0, 3).map((holding, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-4 border border-transparent hover:border-white hover:bg-transparent rounded-lg transition-colors cursor-pointer"
+                      onClick={() => navigate(`/stock/${holding.symbol}`)}
+                    >
+                      <div>
+                        <p className="font-semibold text-white">
+                          {holding.symbol}
+                        </p>
+                        <p className="text-sm text-gray-300">
+                          {holding.quantity} Shares
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-white">
+                          $
+                          {(
+                            holding.quantity * holding.currentPrice
+                          ).toLocaleString("en-US", {
+                            minimumFractionDigits: 2,
+                          })}
+                        </p>
+                        <p
+                          className={`text-sm ${holding.totalGainLoss >= 0 ? "text-green-500" : "text-red-500"}`}
+                        >
+                          {holding.totalGainLoss >= 0 ? "+" : ""}$
+                          {holding.totalGainLoss.toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
-        ))}
-      </div>
+        </div>
 
-      {/* Portfolio Summary */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>Portfolio Summary</CardTitle>
-            <p className="text-sm text-muted-foreground mt-1">Your investment performance</p>
-          </div>
-          <Button onClick={() => navigate("/portfolio")}>View Details</Button>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <p className="text-sm text-muted-foreground">Total Value</p>
-              <p className="text-3xl font-bold text-foreground mt-1">
-                ${totalPortfolioValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Total Gain/Loss</p>
-              <div className="flex items-center gap-2 mt-1">
-                <p
-                  className={`text-3xl font-bold ${
-                    totalGainLoss >= 0 ? "text-green-600" : "text-red-600"
-                  }`}
-                >
-                  {totalGainLoss >= 0 ? "+" : ""}$
-                  {totalGainLoss.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                </p>
-                {totalGainLoss >= 0 ? (
-                  <ArrowUpRight className="w-6 h-6 text-green-600" />
-                ) : (
-                  <ArrowDownRight className="w-6 h-6 text-red-600" />
-                )}
-              </div>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Return</p>
-              <p
-                className={`text-3xl font-bold mt-1 ${
-                  portfolioGainLossPercent >= 0 ? "text-green-600" : "text-red-600"
-                }`}
+        <div>
+          <Card className="text-white">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-white">Watchlist</CardTitle>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-white hover:bg-gray-800"
               >
-                {portfolioGainLossPercent >= 0 ? "+" : ""}
-                {portfolioGainLossPercent.toFixed(2)}%
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Watchlist */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>Watchlist</CardTitle>
-              <p className="text-sm text-muted-foreground mt-1">Track your favorite stocks</p>
-            </div>
-            <Button variant="outline" size="sm">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Stock
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {watchlist.map((stock) => (
-                <div
-                  key={stock.symbol}
-                  className="flex items-center justify-between p-3 hover:bg-accent rounded-lg cursor-pointer transition-colors"
-                  onClick={() => navigate(`/stock/${stock.symbol}`)}
-                >
-                  <div className="flex items-center gap-3">
-                    <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                    <div>
-                      <p className="font-semibold text-foreground">{stock.symbol}</p>
-                      <p className="text-sm text-muted-foreground">{stock.name}</p>
+                <Plus className="w-5 h-5" />
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {watchlist.map((stock) => (
+                  <div
+                    key={stock.symbol}
+                    className="flex items-center justify-between p-3 border border-transparent hover:border-white hover:bg-transparent rounded-lg cursor-pointer transition-colors"
+                    onClick={() => navigate(`/stock/${stock.symbol}`)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Star
+                        className={`w-4 h-4 ${stock.isSuggested ? "text-gray-500" : "text-yellow-500 fill-yellow-500"}`}
+                      />
+                      <div>
+                        <p className="font-semibold text-white">
+                          {stock.symbol}
+                        </p>
+                        <p className="text-xs text-gray-300">
+                          {stock.isSuggested ? "Suggested" : stock.name}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold text-white">
+                        ${stock.price?.toFixed(2)}
+                      </p>
+                      <div
+                        className={`flex items-center gap-1 text-xs ${
+                          stock.change >= 0 ? "text-green-500" : "text-red-500"
+                        }`}
+                      >
+                        {stock.change >= 0 ? (
+                          <ArrowUpRight className="w-3 h-3" />
+                        ) : (
+                          <ArrowDownRight className="w-3 h-3" />
+                        )}
+                        <span>{Math.abs(stock.changePercent).toFixed(2)}%</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-foreground">
-                      ${stock.price.toFixed(2)}
-                    </p>
-                    <div
-                      className={`flex items-center gap-1 text-sm ${
-                        stock.change >= 0 ? "text-green-600" : "text-red-600"
-                      }`}
-                    >
-                      {stock.change >= 0 ? (
-                        <ArrowUpRight className="w-4 h-4" />
-                      ) : (
-                        <ArrowDownRight className="w-4 h-4" />
-                      )}
-                      <span>
-                        {stock.change >= 0 ? "+" : ""}
-                        {stock.changePercent.toFixed(2)}%
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Top Movers */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Top Movers</CardTitle>
-            <p className="text-sm text-muted-foreground mt-1">Biggest market movements today</p>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {[
-                { symbol: "NVDA", name: "NVIDIA Corp", change: 12.34, percent: 1.42 },
-                { symbol: "META", name: "Meta Platforms", change: 7.89, percent: 1.64 },
-                { symbol: "MSFT", name: "Microsoft", change: 5.67, percent: 1.39 },
-                { symbol: "TSLA", name: "Tesla Inc", change: -3.45, percent: -1.79 },
-                { symbol: "GOOGL", name: "Alphabet Inc", change: -1.23, percent: -0.85 },
-              ].map((stock) => (
-                <div
-                  key={stock.symbol}
-                  className="flex items-center justify-between p-3 hover:bg-accent rounded-lg cursor-pointer transition-colors"
-                  onClick={() => navigate(`/stock/${stock.symbol}`)}
-                >
-                  <div className="flex items-center gap-3">
-                    <TrendingUp
-                      className={`w-4 h-4 ${
-                        stock.change >= 0 ? "text-green-600" : "text-red-600"
-                      }`}
-                    />
-                    <div>
-                      <p className="font-semibold text-foreground">{stock.symbol}</p>
-                      <p className="text-sm text-muted-foreground">{stock.name}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p
-                      className={`font-semibold ${
-                        stock.change >= 0 ? "text-green-600" : "text-red-600"
-                      }`}
-                    >
-                      {stock.change >= 0 ? "+" : ""}${stock.change.toFixed(2)}
-                    </p>
-                    <p
-                      className={`text-sm ${
-                        stock.change >= 0 ? "text-green-600" : "text-red-600"
-                      }`}
-                    >
-                      {stock.change >= 0 ? "+" : ""}
-                      {stock.percent.toFixed(2)}%
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
-
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Button variant="outline" onClick={() => navigate("/trade")}>
-              Place Order
-            </Button>
-            <Button variant="outline" onClick={() => navigate("/market")}>
-              Market Overview
-            </Button>
-            <Button variant="outline" onClick={() => navigate("/portfolio")}>
-              View Portfolio
-            </Button>
-            <Button variant="outline">
-              Research Tools
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

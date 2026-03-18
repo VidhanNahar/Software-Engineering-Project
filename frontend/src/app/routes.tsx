@@ -7,9 +7,11 @@ import Trade from "./pages/Trade";
 import MarketOverview from "./pages/MarketOverview";
 import Layout from "./components/Layout";
 
-// Simple auth check (in real app, this would check actual auth state)
+// Simple auth check
 const isAuthenticated = () => {
-  return localStorage.getItem("isLoggedIn") === "true";
+  const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
+  const hasToken = !!localStorage.getItem("access_token");
+  return isLoggedIn && hasToken;
 };
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {

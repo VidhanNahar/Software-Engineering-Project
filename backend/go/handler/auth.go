@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
 	"time"
 
 	"backend-go/auth"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
+	"google.golang.org/api/idtoken"
 )
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -227,3 +229,77 @@ func nullStr(s string) interface{} {
 	}
 	return s
 }
+
+// ── Google OAuth ───────────────────────────────────────────────────────────────
+
+type googleLoginRequest struct {
+	Credential string `json:"credential"`
+}
+
+func GoogleLogin(w http.ResponseWriter, r *http.Request) {
+	var req googleLoginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if req.Credential == "" {
+		writeError(w, http.StatusBadRequest, "credential is required")
+		return
+	}
+
+	clientID := os.Getenv("GOOGLE_CLIENT_ID")
+	if clientID == "" {
+		writeError(w, http.StatusInternalServerError, "Google OAuth not configured")
+		return
+	}
+
+	// Validate the Google ID token
+	payload, err := idtoken.Validate(r.Context(), req.Credential, clientID)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "invalid Google token")
+		return
+	}
+
+	email, _ := payload.Claims["email"].(string)
+	name, _ := payload.Claims["name"].(string)
+	if email == "" {
+		writeError(w, http.StatusBadRequest, "email not provided by Google")
+		return
+	}
+	if name == "" {
+		name = email
+	}
+
+	// Upsert user: insert if not exists, retrieve user_id either way
+	var userID string
+	err = db.Pool.QueryRow(context.Background(),
+		`INSERT INTO users (name, email_id, password, is_verified_email)
+		 VALUES ($1, $2, '', true)
+		 ON CONFLICT (email_id) DO UPDATE SET name = EXCLUDED.name
+		 RETURNING user_id`,
+		name, email,
+	).Scan(&userID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to upsert user")
+		return
+	}
+
+	accessToken, err := auth.GenerateAccessToken(userID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to generate access token")
+		return
+	}
+
+	refreshToken, err := auth.GenerateRefreshToken(userID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to generate refresh token")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{
+		"user_id":       userID,
+		"access_token":  accessToken,
+		"refresh_token": refreshToken,
+	})
+}
+

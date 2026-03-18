@@ -1,10 +1,10 @@
 import { Outlet, useNavigate, useLocation } from "react-router";
-import { 
-  LayoutDashboard, 
-  TrendingUp, 
-  Wallet, 
-  BarChart3, 
-  Settings, 
+import {
+  LayoutDashboard,
+  TrendingUp,
+  Wallet,
+  BarChart3,
+  Settings,
   LogOut,
   Bell,
   Search,
@@ -15,16 +15,30 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { toast } from "sonner";
 import { useTheme } from "../context/ThemeContext";
+import { authApi } from "../api";
 
 export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
 
-  const handleLogout = () => {
-    localStorage.removeItem("isLoggedIn");
-    toast.success("Logged out successfully");
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      const refreshToken = localStorage.getItem("refresh_token");
+      if (refreshToken) {
+        await authApi.logout(refreshToken);
+      }
+    } catch (error) {
+      // Even if API fails (e.g. network issue), we still want to clear local state
+      console.error("Logout API failed", error);
+    } finally {
+      localStorage.removeItem("isLoggedIn");
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+      localStorage.removeItem("user_id");
+      toast.success("Logged out successfully");
+      navigate("/login");
+    }
   };
 
   const navItems = [
@@ -102,11 +116,15 @@ export default function Layout() {
             </div>
 
             <div className="flex items-center gap-4">
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 size="icon"
                 onClick={toggleTheme}
-                title={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+                title={
+                  theme === "light"
+                    ? "Switch to dark mode"
+                    : "Switch to light mode"
+                }
               >
                 {theme === "light" ? (
                   <Moon className="w-5 h-5" />
@@ -119,8 +137,12 @@ export default function Layout() {
               </Button>
               <div className="flex items-center gap-3">
                 <div className="text-right">
-                  <p className="text-sm font-medium text-foreground">John Trader</p>
-                  <p className="text-xs text-muted-foreground">Premium Account</p>
+                  <p className="text-sm font-medium text-foreground">
+                    John Trader
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Premium Account
+                  </p>
                 </div>
                 <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">
                   JT

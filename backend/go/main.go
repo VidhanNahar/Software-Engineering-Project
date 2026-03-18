@@ -13,10 +13,16 @@ import (
 	"backend-go/service"
 
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 )
 
 func main() {
+	// ── Load .env ────────────────────────────────────────────────────
+	if err := godotenv.Load("../.env"); err != nil {
+		log.Println("warning: no .env file found, using system environment")
+	}
+
 	// ── DB ──────────────────────────────────────────────────────────
 	if err := db.Init(); err != nil {
 		log.Fatalf("failed to connect to postgres: %v", err)
@@ -52,6 +58,7 @@ func main() {
 	api.HandleFunc("/auth/login", handler.Login).Methods(http.MethodPost)
 	api.HandleFunc("/auth/refresh", handler.Refresh).Methods(http.MethodPost)
 	api.HandleFunc("/auth/logout", handler.Logout).Methods(http.MethodPost)
+	api.HandleFunc("/auth/google", handler.GoogleLogin).Methods(http.MethodPost)
 
 	// Public stock routes
 	api.HandleFunc("/stocks", handler.GetAllStocks).Methods(http.MethodGet)
