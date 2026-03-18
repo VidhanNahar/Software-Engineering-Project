@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
 import {
   Card,
   CardContent,
@@ -7,16 +10,58 @@ import {
   CardHeader,
   CardTitle,
 } from "../components/ui/card";
-import { TrendingUp, Moon, Sun } from "lucide-react";
+import { TrendingUp, Eye, EyeOff, Moon, Sun } from "lucide-react";
 import { toast } from "sonner";
 import { useTheme } from "../context/ThemeContext";
 
 export default function Login() {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
+  const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      toast.error("Please enter email and password");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email_id: email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Login failed");
+      }
+
+      // Store tokens and user id
+      localStorage.setItem("accessToken", data.access_token);
+      localStorage.setItem("refreshToken", data.refresh_token);
+      localStorage.setItem("userId", data.user_id);
+      localStorage.setItem("isLoggedIn", "true");
+
+      toast.success("Login successful!");
+      navigate("/");
+    } catch (error: any) {
+      toast.error(error.message || "An error occurred during login");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleGoogleLogin = () => {
-    // Mock Google login - in real app, this would integrate with Google OAuth
+    // Mock Google login
     localStorage.setItem("isLoggedIn", "true");
     toast.success("Logged in with Google");
     navigate("/");
@@ -24,7 +69,6 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
-      {/* Theme Toggle Button */}
       <Button
         variant="ghost"
         size="icon"
@@ -42,7 +86,6 @@ export default function Login() {
       </Button>
 
       <div className="w-full max-w-md">
-        {/* Centered Login Card */}
         <Card className="w-full text-white bg-gray-900 border-gray-800">
           <CardHeader className="text-center space-y-4">
             <div className="flex items-center justify-center gap-3">
@@ -60,8 +103,7 @@ export default function Login() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {/* Google Sign In Button */}
+            <form onSubmit={handleLogin} className="space-y-4">
               <Button
                 type="button"
                 variant="outline"
@@ -88,7 +130,88 @@ export default function Login() {
                 </svg>
                 Continue with Google
               </Button>
-            </div>
+
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-border"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-card text-gray-300">
+                    Or continue with email
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-white" htmlFor="email">
+                  Email Address
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="trader@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={isLoading}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-white" htmlFor="password">
+                  Password
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    disabled={isLoading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-200"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-5 h-5" />
+                    ) : (
+                      <Eye className="w-5 h-5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" className="rounded" />
+                  <span className="text-gray-300">Remember me</span>
+                </label>
+                <button
+                  type="button"
+                  className="text-sm text-blue-600 hover:text-blue-700"
+                  onClick={() => toast.info("Password reset coming soon")}
+                >
+                  Forgot password?
+                </button>
+              </div>
+
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? "Signing in..." : "Sign In"}
+              </Button>
+
+              <p className="text-center text-sm text-gray-300 mt-4">
+                Don't have an account?{" "}
+                <button
+                  type="button"
+                  className="text-blue-600 hover:text-blue-700 font-medium"
+                  onClick={() => toast.info("Registration coming soon")}
+                >
+                  Sign up
+                </button>
+              </p>
+            </form>
           </CardContent>
         </Card>
       </div>
