@@ -2,6 +2,7 @@ package main
 
 import (
 	"backend-go/database"
+	"backend-go/store"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -41,6 +42,10 @@ func main() {
 	}
 	fmt.Println("Successfully connected to redis")
 	defer database.CloseRedis(rdb)
+
+	// Create a store
+	s := store.NewStore(db, rdb)
+	fmt.Println(s)
 
 	// Create a http router
 	r := mux.NewRouter()
