@@ -33,6 +33,15 @@ func main() {
 	fmt.Println("Successfully connected to database")
 	defer database.Close(db)
 
+	// Create a redis client
+	rdb, err := database.ConnectRedis()
+	if err != nil {
+		fmt.Println("Failed to connect to redis: ", err)
+		return
+	}
+	fmt.Println("Successfully connected to redis")
+	defer database.CloseRedis(rdb)
+
 	// Create a http router
 	r := mux.NewRouter()
 
