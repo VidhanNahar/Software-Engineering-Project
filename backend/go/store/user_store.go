@@ -2,8 +2,12 @@ package store
 
 import (
 	"backend-go/model"
+	"context"
+	"fmt"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 )
 
 func (s *Store) CreateUser(user *model.User) error {
@@ -81,4 +85,39 @@ func (s *Store) DeleteUserByID(userID uuid.UUID) error {
 		`DELETE FROM user where user_id = $1`, userID,
 	)
 	return err
+}
+
+func (s *Store) SetOTP(userID uuid.UUID, otp string) error {
+	ctx := context.Background()
+	key := fmt.Sprintf("otp:%d", userID)
+
+	err := s.rdb.Set(ctx, key, otp, 10*time.Minute).Err()
+	return err
+}
+
+func (s *Store) ValidateOTP(userID uuid.UUID, otp string) (bool, error) {
+	ctx := context.Background()
+	key := fmt.Sprintf("otp:%d", userID)
+
+	storedOTP, err := s.rdb.Get(ctx, key).Result()
+	if err == redis.Nil {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	return storedOTP == otp, nil
+}
+
+func (s *Store) VerifyUser(userID uuid.UUID) error {
+	_, err := s.db.Exec(
+		`UPDATE user
+		SET is_verified_email = true WHERE user_id = $1`, userID,
+	)
+	return err
+}
+
+func (s *Store) DeleteOTP(userID uuid.UUID) error {
+	ctx := context.Background()
+	key := fmt.Sprintf("otp:%d", userID)
+	return s.rdb.Del(ctx, key).Err()
 }
