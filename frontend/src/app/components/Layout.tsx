@@ -10,6 +10,7 @@ import {
   Search,
   Moon,
   Sun,
+  Shield,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -46,6 +47,7 @@ export default function Layout() {
     { path: "/market", icon: TrendingUp, label: "Market" },
     { path: "/portfolio", icon: Wallet, label: "Portfolio" },
     { path: "/trade", icon: BarChart3, label: "Trade" },
+    { path: "/admin", icon: Shield, label: "Admin" },
   ];
 
   return (

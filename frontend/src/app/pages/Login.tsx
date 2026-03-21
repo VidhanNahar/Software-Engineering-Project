@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -15,33 +15,12 @@ import { toast } from "sonner";
 import { useTheme } from "../context/ThemeContext";
 import { authApi } from "../api";
 
-// Google Identity Services type declarations
-declare global {
-  interface Window {
-    google?: {
-      accounts: {
-        id: {
-          initialize: (config: {
-            client_id: string;
-            callback: (response: { credential: string }) => void;
-            auto_select?: boolean;
-            cancel_on_tap_outside?: boolean;
-          }) => void;
-          prompt: () => void;
-          renderButton: (element: HTMLElement, config: object) => void;
-        };
-      };
-    };
-  }
-}
-
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string;
-
 export default function Login() {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
 
   const [isRegistering, setIsRegistering] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -50,86 +29,18 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
-
-  // ── Google Identity Services ────────────────────────────────────────────────
-  const handleGoogleCredential = useCallback(
-    async (response: { credential: string }) => {
-      setIsLoading(true);
-      try {
-        const result = await fetch("/api/auth/google", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ credential: response.credential }),
-        });
-
-        const data = await result.json();
-
-        if (!result.ok) {
-          throw new Error(data.error || "Google sign-in failed");
-        }
-
-        localStorage.setItem("isLoggedIn", "true");
-        localStorage.setItem("access_token", data.access_token);
-        localStorage.setItem("refresh_token", data.refresh_token);
-        localStorage.setItem("user_id", data.user_id);
-
-        toast.success("Signed in with Google!");
-        navigate("/");
-      } catch (err: unknown) {
-        toast.error(
-          err instanceof Error ? err.message : "Google sign-in failed"
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [navigate]
-  );
-
-  useEffect(() => {
-    const initGoogle = () => {
-      if (!window.google || !GOOGLE_CLIENT_ID) return;
-      window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: handleGoogleCredential,
-        auto_select: false,
-        cancel_on_tap_outside: true,
-      });
-    };
-
-    // GSI script loads async — poll until it's ready
-    if (window.google) {
-      initGoogle();
-    } else {
-      const interval = setInterval(() => {
-        if (window.google) {
-          initGoogle();
-          clearInterval(interval);
-        }
-      }, 100);
-      return () => clearInterval(interval);
-    }
-  }, [handleGoogleCredential]);
-
-
-
-  const handleGoogleLogin = () => {
-    if (!GOOGLE_CLIENT_ID) {
-      toast.error("Google Client ID is not configured");
-      return;
-    }
-    if (!window.google) {
-      toast.error("Google Sign-In is not loaded yet. Please try again.");
-      return;
-    }
-    window.google.accounts.id.prompt();
-  };
+  const [otp, setOtp] = useState("");
 
   // ── Email / Password ────────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (isRegistering) {
+    if (isVerifying) {
+      if (!otp) {
+        toast.error("Please enter the OTP");
+        return;
+      }
+    } else if (isRegistering) {
       if (!name || !email || !password || !dateOfBirth) {
         toast.error("Please fill in all required fields");
         return;
@@ -144,22 +55,32 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      if (isRegistering) {
-        const response = await authApi.register({
+      if (isVerifying) {
+        await authApi.verify({
+          email_id: email,
+          otp,
+        });
+
+        toast.success("Email verified successfully! Please log in.");
+        setIsVerifying(false);
+        setIsRegistering(false);
+        setOtp("");
+        setPassword("");
+      } else if (isRegistering) {
+        await authApi.register({
           name,
           email_id: email,
           password,
-          date_of_birth: dateOfBirth,
-          is_verified_email: true,
+          date_of_birth: dateOfBirth
+            ? new Date(dateOfBirth).toISOString()
+            : undefined,
+          is_verified_email: false,
         });
 
-        localStorage.setItem("isLoggedIn", "true");
-        localStorage.setItem("access_token", response.access_token);
-        localStorage.setItem("refresh_token", response.refresh_token);
-        localStorage.setItem("user_id", response.user_id);
-
-        toast.success("Registration successful!");
-        navigate("/");
+        toast.success(
+          "Registration successful! Please check your email for the OTP.",
+        );
+        setIsVerifying(true);
       } else {
         const response = await authApi.login({
           email_id: email,
@@ -167,9 +88,16 @@ export default function Login() {
         });
 
         localStorage.setItem("isLoggedIn", "true");
-        localStorage.setItem("access_token", response.access_token);
-        localStorage.setItem("refresh_token", response.refresh_token);
-        localStorage.setItem("user_id", response.user_id);
+        localStorage.setItem(
+          "access_token",
+          response.access_token || response.token,
+        );
+        if (response.refresh_token) {
+          localStorage.setItem("refresh_token", response.refresh_token);
+        }
+        if (response.user_id) {
+          localStorage.setItem("user_id", response.user_id);
+        }
 
         toast.success("Login successful!");
         navigate("/");
@@ -183,10 +111,12 @@ export default function Login() {
 
   const toggleMode = () => {
     setIsRegistering(!isRegistering);
+    setIsVerifying(false);
     setName("");
     setEmail("");
     setPassword("");
     setDateOfBirth("");
+    setOtp("");
   };
 
   return (
@@ -217,137 +147,125 @@ export default function Login() {
             </div>
             <div>
               <CardTitle className="text-2xl text-white">
-                {isRegistering ? "Create an Account" : "Welcome to TradeHub"}
+                {isVerifying
+                  ? "Verify Email"
+                  : isRegistering
+                    ? "Create an Account"
+                    : "Welcome to TradeHub"}
               </CardTitle>
               <CardDescription className="text-gray-400">
-                {isRegistering
-                  ? "Sign up to start trading today"
-                  : "Sign in to your trading account to continue"}
+                {isVerifying
+                  ? "Enter the OTP sent to your email"
+                  : isRegistering
+                    ? "Sign up to start trading today"
+                    : "Sign in to your trading account to continue"}
               </CardDescription>
             </div>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              {!isRegistering && (
-                <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full flex items-center justify-center gap-3 text-gray-900 dark:text-white"
-                    onClick={handleGoogleLogin}
-                    disabled={isLoading}
-                  >
-                    <svg className="w-5 h-5" viewBox="0 0 24 24">
-                      <path
-                        fill="#4285F4"
-                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                      />
-                      <path
-                        fill="#34A853"
-                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                      />
-                      <path
-                        fill="#FBBC05"
-                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                      />
-                      <path
-                        fill="#EA4335"
-                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                      />
-                    </svg>
-                    Continue with Google
-                  </Button>
+              {isVerifying && (
+                <div className="space-y-2">
+                  <Label className="text-white" htmlFor="otp">
+                    One-Time Password (OTP)
+                  </Label>
+                  <Input
+                    id="otp"
+                    type="text"
+                    placeholder="Enter 6-digit OTP"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    className="bg-gray-800 border-gray-700 text-white text-center tracking-[0.5em] text-lg font-mono"
+                    maxLength={6}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    An OTP has been sent to {email}
+                  </p>
+                </div>
+              )}
 
-                  <div className="relative my-6">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-gray-800"></div>
+              {!isVerifying && (
+                <>
+                  {isRegistering && (
+                    <div className="space-y-2">
+                      <Label className="text-white" htmlFor="name">
+                        Full Name
+                      </Label>
+                      <Input
+                        id="name"
+                        type="text"
+                        placeholder="John Doe"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="bg-gray-800 border-gray-700 text-white"
+                      />
                     </div>
-                    <div className="relative flex justify-center text-sm">
-                      <span className="px-2 bg-gray-900 text-gray-400">
-                        Or continue with email
-                      </span>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label className="text-white" htmlFor="email">
+                      Email Address
+                    </Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="trader@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="bg-gray-800 border-gray-700 text-white"
+                      disabled={isVerifying}
+                    />
+                  </div>
+
+                  {isRegistering && (
+                    <div className="space-y-2">
+                      <Label className="text-white" htmlFor="dob">
+                        Date of Birth
+                      </Label>
+                      <Input
+                        id="dob"
+                        type="date"
+                        value={dateOfBirth}
+                        onChange={(e) => setDateOfBirth(e.target.value)}
+                        className="bg-gray-800 border-gray-700 text-white [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert"
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label className="text-white" htmlFor="password">
+                      Password
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder={
+                          isRegistering
+                            ? "Create a secure password"
+                            : "Enter your password"
+                        }
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="bg-gray-800 border-gray-700 text-white pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                      >
+                        {showPassword ? (
+                          <EyeOff className="w-5 h-5" />
+                        ) : (
+                          <Eye className="w-5 h-5" />
+                        )}
+                      </button>
                     </div>
                   </div>
                 </>
               )}
 
-              {isRegistering && (
-                <div className="space-y-2">
-                  <Label className="text-white" htmlFor="name">
-                    Full Name
-                  </Label>
-                  <Input
-                    id="name"
-                    type="text"
-                    placeholder="John Doe"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="bg-gray-800 border-gray-700 text-white"
-                  />
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label className="text-white" htmlFor="email">
-                  Email Address
-                </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="trader@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="bg-gray-800 border-gray-700 text-white"
-                />
-              </div>
-
-              {isRegistering && (
-                <div className="space-y-2">
-                  <Label className="text-white" htmlFor="dob">
-                    Date of Birth
-                  </Label>
-                  <Input
-                    id="dob"
-                    type="date"
-                    value={dateOfBirth}
-                    onChange={(e) => setDateOfBirth(e.target.value)}
-                    className="bg-gray-800 border-gray-700 text-white [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert"
-                  />
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label className="text-white" htmlFor="password">
-                  Password
-                </Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder={
-                      isRegistering
-                        ? "Create a secure password"
-                        : "Enter your password"
-                    }
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="bg-gray-800 border-gray-700 text-white pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-5 h-5" />
-                    ) : (
-                      <Eye className="w-5 h-5" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {!isRegistering && (
+              {!isRegistering && !isVerifying && (
                 <div className="flex items-center justify-between">
                   <label className="flex items-center gap-2 text-sm cursor-pointer">
                     <input
@@ -376,6 +294,8 @@ export default function Login() {
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Please wait
                   </>
+                ) : isVerifying ? (
+                  "Verify OTP"
                 ) : isRegistering ? (
                   "Create Account"
                 ) : (
@@ -384,17 +304,42 @@ export default function Login() {
               </Button>
 
               <p className="text-center text-sm text-gray-400 mt-4">
-                {isRegistering
-                  ? "Already have an account? "
-                  : "Don't have an account? "}
-                <button
-                  type="button"
-                  className="text-blue-500 hover:text-blue-400 font-medium transition-colors"
-                  onClick={toggleMode}
-                  disabled={isLoading}
-                >
-                  {isRegistering ? "Sign in" : "Sign up"}
-                </button>
+                {isVerifying ? (
+                  <>
+                    <button
+                      type="button"
+                      className="text-blue-500 hover:text-blue-400 font-medium transition-colors"
+                      onClick={() => setIsVerifying(false)}
+                      disabled={isLoading}
+                    >
+                      Back to sign up
+                    </button>
+                  </>
+                ) : isRegistering ? (
+                  <>
+                    Already have an account?{" "}
+                    <button
+                      type="button"
+                      className="text-blue-500 hover:text-blue-400 font-medium transition-colors"
+                      onClick={toggleMode}
+                      disabled={isLoading}
+                    >
+                      Sign in
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    Don't have an account?{" "}
+                    <button
+                      type="button"
+                      className="text-blue-500 hover:text-blue-400 font-medium transition-colors"
+                      onClick={toggleMode}
+                      disabled={isLoading}
+                    >
+                      Sign up
+                    </button>
+                  </>
+                )}
               </p>
             </form>
           </CardContent>

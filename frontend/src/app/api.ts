@@ -67,6 +67,11 @@ export const authApi = {
       method: "POST",
       body: JSON.stringify({ refresh_token: refreshToken }),
     }),
+  verify: (data: { email_id: string; otp: string }) =>
+    apiCall("/auth/verify", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 };
 
 export const stockApi = {
@@ -110,4 +115,22 @@ export const watchlistApi = {
     apiCall(`/watchlist/${watchlistId}`, {
       method: "DELETE",
     }),
+};
+
+export const adminApi = {
+  createStock: (data: any) =>
+    apiCall("/admin/stocks", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateStock: (stockId: string, data: any) =>
+    apiCall(`/admin/stocks/${stockId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  deleteStock: (stockId: string) =>
+    apiCall(`/admin/stocks/${stockId}`, {
+      method: "DELETE",
+    }),
+  getTopStocks: () => apiCall("/admin/stocks/top"),
 };
