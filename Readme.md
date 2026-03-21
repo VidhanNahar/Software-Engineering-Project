@@ -931,7 +931,7 @@ const ProtectedRoute = ({ children }) => {
 4. React frontend builds and serves (Vite dev server)
 
 ### Database Migrations
-- Schema file: `backend/go/migrations/schema.sql`
+- Schema file: `backend/migrations/schema.sql`
 - Manual execution required (no auto-migration shown)
 - Tables created with `CREATE TABLE IF NOT EXISTS`
 
@@ -991,7 +991,7 @@ const ProtectedRoute = ({ children }) => {
 
 2. Run backend:
    ```bash
-   cd backend/go
+   cd backend
    go run main.go
    ```
 
