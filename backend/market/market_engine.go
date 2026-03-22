@@ -25,6 +25,7 @@ type MarketEngine struct {
 
 	started atomic.Bool
 	stopCh  chan struct{}
+	doneCh  chan struct{}
 	mu      sync.Mutex
 }
 
@@ -34,6 +35,7 @@ func NewMarketEngine(runner CycleRunner, broadcaster *WebSocketBroadcaster, inte
 		broadcaster: broadcaster,
 		interval:    interval,
 		stopCh:      make(chan struct{}),
+		doneCh:      make(chan struct{}),
 	}
 }
 
@@ -46,6 +48,8 @@ func (e *MarketEngine) Start() {
 	}
 	e.started.Store(true)
 
+	e.stopCh = make(chan struct{})
+	e.doneCh = make(chan struct{})
 	go e.runLoop()
 }
 
@@ -57,11 +61,17 @@ func (e *MarketEngine) Stop() {
 		return
 	}
 	close(e.stopCh)
-	e.stopCh = make(chan struct{})
+	e.mu.Unlock()
+
+	// Wait for goroutine to exit gracefully
+	<-e.doneCh
+
+	e.mu.Lock()
 	e.started.Store(false)
 }
 
 func (e *MarketEngine) runLoop() {
+	defer close(e.doneCh)
 	ticker := time.NewTicker(e.interval)
 	defer ticker.Stop()
 

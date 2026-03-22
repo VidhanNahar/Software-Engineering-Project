@@ -9,43 +9,58 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// ClientConn wraps a websocket connection with its own write mutex
+type ClientConn struct {
+	conn *websocket.Conn
+	mu   sync.Mutex
+}
+
 // WebSocketBroadcaster is a central fan-out hub for real-time events.
 type WebSocketBroadcaster struct {
 	mu      sync.RWMutex
-	clients map[*websocket.Conn]struct{}
+	clients map[*ClientConn]struct{}
 }
 
 func NewWebSocketBroadcaster() *WebSocketBroadcaster {
 	return &WebSocketBroadcaster{
-		clients: make(map[*websocket.Conn]struct{}),
+		clients: make(map[*ClientConn]struct{}),
 	}
 }
 
 func (b *WebSocketBroadcaster) AddClient(conn *websocket.Conn) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.clients[conn] = struct{}{}
+	b.clients[&ClientConn{conn: conn}] = struct{}{}
 }
 
 func (b *WebSocketBroadcaster) RemoveClient(conn *websocket.Conn) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	delete(b.clients, conn)
+	for client := range b.clients {
+		if client.conn == conn {
+			delete(b.clients, client)
+			break
+		}
+	}
 }
 
 func (b *WebSocketBroadcaster) broadcast(payload map[string]any) {
 	b.mu.RLock()
-	clients := make([]*websocket.Conn, 0, len(b.clients))
+	clients := make([]*ClientConn, 0, len(b.clients))
 	for c := range b.clients {
 		clients = append(clients, c)
 	}
 	b.mu.RUnlock()
 
-	for _, conn := range clients {
-		if err := conn.WriteJSON(payload); err != nil {
+	for _, clientConn := range clients {
+		clientConn.mu.Lock()
+		err := clientConn.conn.WriteJSON(payload)
+		clientConn.mu.Unlock()
+
+		if err != nil {
 			log.Println("websocket broadcast error:", err)
-			b.RemoveClient(conn)
-			_ = conn.Close()
+			b.RemoveClient(clientConn.conn)
+			_ = clientConn.conn.Close()
 		}
 	}
 }
