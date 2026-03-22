@@ -52,6 +52,7 @@ func main() {
 	r := mux.NewRouter()
 
 	u := controller.NewUserHandler(s)
+	t := controller.NewTradeHandler(s)
 
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
@@ -60,6 +61,7 @@ func main() {
 	r.HandleFunc("/auth/register", u.CreateUser).Methods("POST")
 	r.HandleFunc("/auth/login", u.Login).Methods("POST")
 	r.HandleFunc("/auth/verify", u.VerifyEmail).Methods("POST")
+	r.HandleFunc("/stocks", t.GetStocks).Methods("GET")
 
 	api := r.PathPrefix("/api").Subrouter()
 	api.Use(middleware.AuthMiddleware)
@@ -68,6 +70,10 @@ func main() {
 	api.HandleFunc("/user/{id}", u.GetUserByID).Methods("GET")
 	api.HandleFunc("/user/{id}", u.UpdateUserByID).Methods("PUT")
 	api.HandleFunc("/user/{id}", u.DeleteUserByID).Methods("DELETE")
+	api.HandleFunc("/trade/buy", t.BuyStock).Methods("POST")
+	api.HandleFunc("/trade/sell", t.SellStock).Methods("POST")
+	api.HandleFunc("/portfolio", t.GetPortfolio).Methods("GET")
+	api.HandleFunc("/orders", t.GetOrders).Methods("GET")
 
 	log.Println("Server starting on port 8080...")
 	log.Fatal(http.ListenAndServe(":8080", r))

@@ -92,3 +92,26 @@ CREATE TABLE IF NOT EXISTS wallet (
     balance        NUMERIC(15,2)  CHECK (balance >= 0),
     locked_balance NUMERIC(15,2)  CHECK (locked_balance >= 0)
 );
+
+-- =============================================================
+-- Transaction Safety Constraints
+-- =============================================================
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'wallet_user_id_unique'
+    ) THEN
+        ALTER TABLE wallet
+        ADD CONSTRAINT wallet_user_id_unique UNIQUE (user_id);
+    END IF;
+END$$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'portfolio_user_stock_unique'
+    ) THEN
+        ALTER TABLE portfolio
+        ADD CONSTRAINT portfolio_user_stock_unique UNIQUE (user_id, stock_id);
+    END IF;
+END$$;

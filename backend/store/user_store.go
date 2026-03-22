@@ -11,14 +11,32 @@ import (
 )
 
 func (s *Store) CreateUser(user *model.User) error {
-	err := s.db.QueryRow(
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	err = tx.QueryRow(
 		`INSERT INTO users (name, email_id, password, aadhar_id, pan_id, phone_number, date_of_birth)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING user_id`,
 		user.UserName, user.EmailID, user.Password, user.AadharID, user.PanID, user.PhoneNumber, user.DateOfBirth,
 	).Scan(&user.UserID)
+	if err != nil {
+		return err
+	}
 
-	return err
+	// Create wallet with zero opening balance for every new user.
+	_, err = tx.Exec(
+		`INSERT INTO wallet (user_id, balance, locked_balance) VALUES ($1, $2, $3)`,
+		user.UserID, 0.0, 0.0,
+	)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 func (s *Store) GetUsers() ([]model.User, error) {
