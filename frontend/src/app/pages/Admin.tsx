@@ -10,11 +10,13 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { toast } from "sonner";
 import { adminApi, stockApi } from "../api";
-import { Trash2, Edit2, Loader2, Plus } from "lucide-react";
+import { Trash2, Edit2, Loader2, Plus, PowerCircle, Play, Square } from "lucide-react";
 
 export default function Admin() {
   const [stocks, setStocks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [marketStatus, setMarketStatus] = useState<any>(null);
+  const [marketLoading, setMarketLoading] = useState(false);
   const [formData, setFormData] = useState({
     symbol: "",
     name: "",
@@ -35,8 +37,21 @@ export default function Admin() {
     }
   };
 
+  const fetchMarketStatus = async () => {
+    try {
+      const status = await adminApi.getMarketStatus();
+      setMarketStatus(status);
+    } catch (err: any) {
+      console.log("Failed to fetch market status", err?.message || err);
+    }
+  };
+
   useEffect(() => {
     fetchStocks();
+    fetchMarketStatus();
+    // Poll market status every 2 seconds
+    const interval = setInterval(fetchMarketStatus, 2000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -104,13 +119,115 @@ export default function Admin() {
     }
   };
 
+  const handleStartMarket = async () => {
+    try {
+      setMarketLoading(true);
+      const res = await adminApi.startMarket();
+      if (res?.status) {
+        setMarketStatus(res.status);
+      }
+      toast.success("Market opened for trading!");
+      await fetchMarketStatus();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to start market");
+    } finally {
+      setMarketLoading(false);
+    }
+  };
+
+  const handleStopMarket = async () => {
+    try {
+      setMarketLoading(true);
+      const res = await adminApi.stopMarket();
+      if (res?.status) {
+        setMarketStatus(res.status);
+      }
+      toast.success("Market closed. No trading allowed.");
+      await fetchMarketStatus();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to stop market");
+    } finally {
+      setMarketLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-foreground">Admin Portal</h1>
         <p className="text-muted-foreground mt-1">
-          Manage stocks in the system
+          Manage stocks and market operations
         </p>
+      </div>
+
+      {/* Market Control Card */}
+      <Card className="border-2 border-blue-500/50 bg-gradient-to-r from-blue-50 to-transparent dark:from-blue-950/30 dark:to-transparent">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <PowerCircle className="w-5 h-5 text-blue-600" />
+            Market Control
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-muted/50 rounded-lg border border-border">
+            <div className="flex-1">
+              <div className="text-lg font-semibold text-foreground">
+                Market Status:{" "}
+                <span
+                  className={`${
+                    marketStatus?.is_open
+                      ? "text-green-600 dark:text-green-400"
+                      : "text-red-600 dark:text-red-400"
+                  }`}
+                >
+                  {marketStatus?.is_open ? "OPEN" : "CLOSED"}
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                {marketStatus?.is_open
+                  ? `Trading started at ${
+                      marketStatus?.opened_at
+                        ? new Date(marketStatus.opened_at).toLocaleString()
+                        : "N/A"
+                    }`
+                  : marketStatus?.closed_at
+                    ? `Trading stopped at ${new Date(
+                        marketStatus.closed_at
+                      ).toLocaleString()}`
+                    : "Market is currently closed"}
+              </p>
+            </div>
+
+            <div className="flex gap-3 w-full sm:w-auto">
+              <Button
+                onClick={handleStartMarket}
+                disabled={marketStatus?.is_open || marketLoading}
+                className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700 text-white"
+              >
+                {marketLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                <Play className="w-4 h-4 mr-2" />
+                Start Market
+              </Button>
+
+              <Button
+                onClick={handleStopMarket}
+                disabled={!marketStatus?.is_open || marketLoading}
+                className="flex-1 sm:flex-none bg-red-600 hover:bg-red-700 text-white"
+              >
+                {marketLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                <Square className="w-4 h-4 mr-2" />
+                Stop Market
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Stock Management Section */}
+      <div>
+        <h2 className="text-xl font-semibold text-foreground mb-4">
+          Stock Management
+        </h2>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

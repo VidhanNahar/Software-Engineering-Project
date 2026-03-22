@@ -1,5 +1,5 @@
 -- =============================================================
--- VidhanNahar – Full Database Schema
+-- FinXGrow - Full Database Schema
 -- Derived from design_doc.pdf
 -- =============================================================
 

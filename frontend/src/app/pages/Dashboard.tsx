@@ -44,19 +44,18 @@ export default function Dashboard() {
         // If user has no watchlist yet, show some suggested stocks from the DB
         if (watchItems.length === 0 && stocksRes?.stocks?.length > 0) {
           watchItems = stocksRes.stocks.slice(0, 5).map((s: any) => {
-            const pseudoChange = ((s.symbol.length * 7) % 10) - 5;
             return {
               ...s,
               isSuggested: true,
-              change: pseudoChange || 1.2,
-              changePercent: (pseudoChange / s.price) * 100 || 0.8,
+              change: s.change ?? 0,
+              changePercent: s.changePercent ?? s.change_percent ?? 0,
             };
           });
         } else {
           watchItems = watchItems.map((s: any) => ({
             ...s,
-            change: s.change || Math.random() * 10 - 5,
-            changePercent: s.changePercent || Math.random() * 5 - 2.5,
+            change: s.change ?? 0,
+            changePercent: s.changePercent ?? s.change_percent ?? 0,
           }));
         }
 
@@ -70,25 +69,7 @@ export default function Dashboard() {
 
     fetchDashboardData();
 
-    // Simulate real-time price updates for the UI
-    const interval = setInterval(() => {
-      setWatchlist((prev) =>
-        prev.map((item) => {
-          const changeDelta = (Math.random() - 0.5) * 2;
-          const newPrice = Math.max(0.01, item.price + changeDelta);
-          const change = item.change + changeDelta;
-          const changePercent = (change / (item.price - item.change)) * 100;
-          return {
-            ...item,
-            price: newPrice,
-            change: parseFloat(change.toFixed(2)),
-            changePercent: parseFloat(changePercent.toFixed(2)),
-          };
-        }),
-      );
-    }, 5000);
-
-    return () => clearInterval(interval);
+    return () => {};
   }, []);
 
   if (loading) {

@@ -3,6 +3,7 @@ package main
 import (
 	"backend-go/controller"
 	"backend-go/database"
+	"backend-go/market"
 	"backend-go/middleware"
 	"backend-go/store"
 	"encoding/json"
@@ -72,10 +73,12 @@ func main() {
 
 	// Create a http router
 	r := mux.NewRouter()
+	broadcaster := market.NewWebSocketBroadcaster()
+	marketService := market.NewMarketService(s, broadcaster)
 
 	u := controller.NewUserHandler(s)
-	t := controller.NewTradeHandler(s)
-	rt := controller.NewRealtimeHandler(s)
+	t := controller.NewTradeHandler(s, marketService)
+	rt := controller.NewRealtimeHandler(s, broadcaster)
 
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
@@ -94,10 +97,15 @@ func main() {
 	r.HandleFunc("/stocks", t.GetStocks).Methods("GET")
 	r.HandleFunc("/api/stocks", t.GetStocks).Methods("GET")
 	r.HandleFunc("/api/stocks/search", t.SearchStocks).Methods("GET")
+	r.HandleFunc("/api/stocks/{symbol}/ticks", t.GetStockTicksBySymbol).Methods("GET")
+	r.HandleFunc("/api/stocks/{symbol}/candles", t.GetStockCandlesBySymbol).Methods("GET")
 	r.HandleFunc("/api/stocks/{id}", t.GetStockByID).Methods("GET")
 	r.HandleFunc("/api/stocks/symbol/{symbol}", t.GetStockBySymbol).Methods("GET")
+	r.HandleFunc("/api/stocks/symbol/{symbol}/ticks", t.GetStockTicksBySymbol).Methods("GET")
+	r.HandleFunc("/api/stocks/symbol/{symbol}/candles", t.GetStockCandlesBySymbol).Methods("GET")
 	r.HandleFunc("/api/stocks/{id}/history", t.GetStockHistory).Methods("GET")
 	r.HandleFunc("/api/stocks/{id}/stats", t.GetStockStats).Methods("GET")
+	r.HandleFunc("/api/market/status", t.GetMarketStatus).Methods("GET")
 	r.HandleFunc("/ws/stocks", rt.StocksStream).Methods("GET")
 
 	api := r.PathPrefix("/api").Subrouter()
@@ -130,7 +138,13 @@ func main() {
 	api.HandleFunc("/admin/stocks/{id}", t.AdminDeleteStock).Methods("DELETE")
 	api.HandleFunc("/admin/stocks/top", t.GetTopStocks).Methods("GET")
 	api.HandleFunc("/admin/orders", t.GetAllOrdersAdmin).Methods("GET")
+	api.HandleFunc("/admin/market/start", t.StartMarket).Methods("POST")
+	api.HandleFunc("/admin/market/stop", t.StopMarket).Methods("POST")
 
-	log.Println("Server starting on port 8080...")
-	log.Fatal(http.ListenAndServe(":8080", r))
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	log.Printf("Server starting on port %s...", port)
+	log.Fatal(http.ListenAndServe(":"+port, r))
 }

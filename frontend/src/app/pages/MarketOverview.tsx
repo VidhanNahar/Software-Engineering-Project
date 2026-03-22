@@ -21,35 +21,51 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Cell,
 } from "recharts";
 import { stockApi } from "../api";
 
+type MarketStock = {
+  stock_id: string;
+  symbol: string;
+  name: string;
+  price: number;
+  change: number;
+  change_percent: number;
+  volume: number;
+  total_traded_value: number;
+};
+
+function toNumber(value: unknown): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizeStocks(rawStocks: any[] = []): MarketStock[] {
+  return rawStocks.map((s: any) => ({
+    stock_id: String(s.stock_id || ""),
+    symbol: String(s.symbol || "").toUpperCase(),
+    name: String(s.name || ""),
+    price: toNumber(s.price),
+    change: toNumber(s.change),
+    change_percent: toNumber(s.change_percent),
+    volume: toNumber(s.volume),
+    total_traded_value: toNumber(s.total_traded_value),
+  }));
+}
+
 export default function MarketOverview() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("overview");
-  const [allStocks, setAllStocks] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState("gainers");
+  const [allStocks, setAllStocks] = useState<MarketStock[]>([]);
   const [loading, setLoading] = useState(true);
+  const [wsConnected, setWsConnected] = useState(false);
 
   useEffect(() => {
     const fetchStocks = async () => {
       try {
         const response = await stockApi.getAll();
-        if (response && response.stocks) {
-          // Simulate change, changePercent and volume since backend currently just returns stock basics
-          const enrichedStocks = response.stocks.map((s: any) => {
-            // Pseudo-random generation based on stock properties to stay consistent during renders
-            const pseudoRand = ((s.symbol.length * 13) % 10) - 5;
-            const change = pseudoRand || 1.5;
-            const changePercent = (change / s.price) * 100;
-            return {
-              ...s,
-              change,
-              changePercent,
-              volume: s.quantity || Math.floor(Math.random() * 1000000),
-            };
-          });
-          setAllStocks(enrichedStocks);
+        if (response?.stocks) {
+          setAllStocks(normalizeStocks(response.stocks));
         }
       } catch (err) {
         console.error("Failed to fetch stocks", err);
@@ -60,41 +76,64 @@ export default function MarketOverview() {
     fetchStocks();
   }, []);
 
+  useEffect(() => {
+    let ws: WebSocket | null = null;
+    const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+
+    try {
+      ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws/stocks`);
+
+      ws.onopen = () => setWsConnected(true);
+      ws.onclose = () => setWsConnected(false);
+      ws.onerror = () => setWsConnected(false);
+
+      ws.onmessage = (event: MessageEvent<string>) => {
+        try {
+          const payload = JSON.parse(event.data) as { stocks?: any[] };
+          if (!payload?.stocks) return;
+          setAllStocks(normalizeStocks(payload.stocks));
+        } catch {
+          // Ignore malformed websocket payloads.
+        }
+      };
+    } catch {
+      setWsConnected(false);
+    }
+
+    return () => {
+      if (ws) ws.close();
+    };
+  }, []);
+
   const gainers = [...allStocks]
-    .sort((a, b) => b.changePercent - a.changePercent)
+    .sort((a, b) => b.change_percent - a.change_percent)
     .slice(0, 5);
   const losers = [...allStocks]
-    .sort((a, b) => a.changePercent - b.changePercent)
+    .sort((a, b) => a.change_percent - b.change_percent)
     .slice(0, 5);
   const mostActive = [...allStocks]
     .sort((a, b) => b.volume - a.volume)
     .slice(0, 5);
 
-  const sectorPerformance = [
-    { sector: "Technology", change: 1.25, value: 156.8 },
-    { sector: "Healthcare", change: 0.85, value: 142.3 },
-    { sector: "Financial", change: -0.35, value: 128.5 },
-    { sector: "Energy", change: 1.95, value: 118.2 },
-    { sector: "Consumer", change: 0.45, value: 134.7 },
-    { sector: "Industrial", change: -0.65, value: 121.4 },
-  ];
+  const topByTradedValue = [...allStocks]
+    .sort((a, b) => b.total_traded_value - a.total_traded_value)
+    .slice(0, 4);
 
-  const marketIndices = [
-    { name: "S&P 500", value: 5234.18, change: 45.67, percent: 0.87 },
-    { name: "Dow Jones", value: 38905.66, change: 476.84, percent: 1.24 },
-    { name: "NASDAQ", value: 16248.52, change: -12.34, percent: -0.08 },
-    { name: "Russell 2000", value: 2065.88, change: 15.22, percent: 0.74 },
-  ];
+  const moversData = [...allStocks]
+    .sort((a, b) => Math.abs(b.change_percent) - Math.abs(a.change_percent))
+    .slice(0, 8)
+    .map((s) => ({ symbol: s.symbol, change_percent: s.change_percent }));
 
-  const volumeData = [
-    { time: "09:30", volume: 1200 },
-    { time: "10:30", volume: 1800 },
-    { time: "11:30", volume: 1500 },
-    { time: "12:30", volume: 900 },
-    { time: "13:30", volume: 1100 },
-    { time: "14:30", volume: 1600 },
-    { time: "15:30", volume: 2400 },
-  ];
+  const volumeData = [...allStocks]
+    .sort((a, b) => b.volume - a.volume)
+    .slice(0, 8)
+    .map((s) => ({ symbol: s.symbol, volume: s.volume }));
+
+  const advancing = allStocks.filter((s) => s.change > 0).length;
+  const declining = allStocks.filter((s) => s.change < 0).length;
+  const unchanged = allStocks.length - advancing - declining;
+  const advancingPct = allStocks.length > 0 ? (advancing / allStocks.length) * 100 : 0;
+  const decliningPct = allStocks.length > 0 ? (declining / allStocks.length) * 100 : 0;
 
   if (loading) {
     return <div className="p-6 text-white">Loading market data...</div>;
@@ -104,38 +143,41 @@ export default function MarketOverview() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-white">Market Overview</h1>
-        <p className="text-gray-300 mt-1">
-          Real-time market data and analytics
+        <p className="text-gray-300 mt-1">Live market data from backend stream</p>
+        <p className={`mt-1 text-sm ${wsConnected ? "text-green-500" : "text-yellow-500"}`}>
+          Feed: {wsConnected ? "Live websocket connected" : "Using latest API snapshot"}
         </p>
       </div>
 
-      {/* Market Indices */}
+      {/* Market Leaders */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {marketIndices.map((index) => (
-          <Card key={index.name}>
+        {topByTradedValue.map((stock) => (
+          <Card key={stock.symbol}>
             <CardContent className="p-6">
-              <p className="text-sm text-gray-300">{index.name}</p>
+              <p className="text-sm text-gray-300">{stock.symbol}</p>
+              <p className="text-xs text-gray-400 truncate">{stock.name}</p>
               <p className="text-2xl font-bold text-white mt-1">
-                {index.value.toLocaleString("en-US", {
-                  minimumFractionDigits: 2,
-                })}
+                ${stock.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
               <div
                 className={`flex items-center gap-1 mt-1 ${
-                  index.change >= 0 ? "text-green-600" : "text-red-600"
+                  stock.change >= 0 ? "text-green-600" : "text-red-600"
                 }`}
               >
-                {index.change >= 0 ? (
+                {stock.change >= 0 ? (
                   <ArrowUpRight className="w-4 h-4" />
                 ) : (
                   <ArrowDownRight className="w-4 h-4" />
                 )}
                 <span className="text-sm font-semibold">
-                  {index.change >= 0 ? "+" : ""}
-                  {index.change.toFixed(2)} ({index.percent >= 0 ? "+" : ""}
-                  {index.percent.toFixed(2)}%)
+                  {stock.change >= 0 ? "+" : ""}
+                  {stock.change.toFixed(2)} ({stock.change_percent >= 0 ? "+" : ""}
+                  {stock.change_percent.toFixed(2)}%)
                 </span>
               </div>
+              <p className="mt-1 text-xs text-gray-400">
+                Traded Value: {stock.total_traded_value.toLocaleString("en-US")}
+              </p>
             </CardContent>
           </Card>
         ))}
@@ -146,13 +188,13 @@ export default function MarketOverview() {
         <div className="lg:col-span-2 space-y-6">
           <Card className="text-white">
             <CardHeader>
-              <CardTitle className="text-white">Sector Performance</CardTitle>
+              <CardTitle className="text-white">Top Movers (%)</CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={sectorPerformance}>
+                <BarChart data={moversData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="sector" stroke="#6b7280" />
+                  <XAxis dataKey="symbol" stroke="#6b7280" />
                   <YAxis stroke="#6b7280" />
                   <Tooltip
                     cursor={{ fill: "transparent" }}
@@ -166,16 +208,11 @@ export default function MarketOverview() {
                     }}
                   />
                   <Bar
-                    dataKey="change"
+                    dataKey="change_percent"
                     radius={[8, 8, 0, 0]}
                     activeBar={{ stroke: "white", strokeWidth: 2 }}
+                    fill="#3b82f6"
                   >
-                    {sectorPerformance.map((entry) => (
-                      <Cell
-                        key={`cell-${entry.sector}`}
-                        fill={entry.change >= 0 ? "#10b981" : "#ef4444"}
-                      />
-                    ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -185,13 +222,13 @@ export default function MarketOverview() {
           {/* Market Activity */}
           <Card className="text-white">
             <CardHeader>
-              <CardTitle className="text-white">Market Volume</CardTitle>
+              <CardTitle className="text-white">Most Active Volume</CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={volumeData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="time" stroke="#6b7280" />
+                  <XAxis dataKey="symbol" stroke="#6b7280" />
                   <YAxis stroke="#6b7280" />
                   <Tooltip
                     cursor={{ fill: "transparent" }}
@@ -221,24 +258,24 @@ export default function MarketOverview() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-300">Advancing (45%)</span>
-                <span className="text-sm text-gray-300">Declining (55%)</span>
+                <span className="text-sm text-gray-300">Advancing ({advancingPct.toFixed(0)}%)</span>
+                <span className="text-sm text-gray-300">Declining ({decliningPct.toFixed(0)}%)</span>
               </div>
               <div className="w-full h-4 flex rounded-full overflow-hidden">
-                <div className="bg-green-500 h-full" style={{ width: "45%" }} />
-                <div className="bg-red-500 h-full" style={{ width: "55%" }} />
+                <div className="bg-green-500 h-full" style={{ width: `${advancingPct}%` }} />
+                <div className="bg-red-500 h-full" style={{ width: `${decliningPct}%` }} />
               </div>
               <div className="flex justify-between mt-4">
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-green-500">3,245</p>
+                  <p className="text-2xl font-bold text-green-500">{advancing}</p>
                   <p className="text-sm text-gray-300">Issues Advancing</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-red-500">3,892</p>
+                  <p className="text-2xl font-bold text-red-500">{declining}</p>
                   <p className="text-sm text-gray-300">Issues Declining</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-gray-500">214</p>
+                  <p className="text-2xl font-bold text-gray-500">{unchanged}</p>
                   <p className="text-sm text-gray-300">Unchanged</p>
                 </div>
               </div>
@@ -254,12 +291,12 @@ export default function MarketOverview() {
             className="w-full"
           >
             <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="overview">Gainers</TabsTrigger>
-              <TabsTrigger value="details">Losers</TabsTrigger>
-              <TabsTrigger value="financials">Active</TabsTrigger>
+              <TabsTrigger value="gainers">Gainers</TabsTrigger>
+              <TabsTrigger value="losers">Losers</TabsTrigger>
+              <TabsTrigger value="active">Active</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview">
+            <TabsContent value="gainers">
               <Card className="text-white">
                 <CardContent className="pt-6">
                   <div className="space-y-4">
@@ -281,7 +318,7 @@ export default function MarketOverview() {
                           </p>
                           <p className="text-sm text-green-500 flex items-center justify-end gap-1">
                             <ArrowUpRight className="w-4 h-4" />
-                            {stock.changePercent.toFixed(2)}%
+                            {stock.change_percent.toFixed(2)}%
                           </p>
                         </div>
                       </div>
@@ -291,7 +328,7 @@ export default function MarketOverview() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="details">
+            <TabsContent value="losers">
               <Card className="text-white">
                 <CardContent className="pt-6">
                   <div className="space-y-4">
@@ -313,7 +350,7 @@ export default function MarketOverview() {
                           </p>
                           <p className="text-sm text-red-500 flex items-center justify-end gap-1">
                             <ArrowDownRight className="w-4 h-4" />
-                            {Math.abs(stock.changePercent).toFixed(2)}%
+                            {Math.abs(stock.change_percent).toFixed(2)}%
                           </p>
                         </div>
                       </div>
@@ -323,7 +360,7 @@ export default function MarketOverview() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="financials">
+            <TabsContent value="active">
               <Card className="text-white">
                 <CardContent className="pt-6">
                   <div className="space-y-4">

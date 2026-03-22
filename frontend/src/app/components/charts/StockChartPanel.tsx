@@ -29,7 +29,7 @@ export function StockChartPanel({ options, selectedSymbol, onSymbolChange, baseP
         <TimeframeSelector value={timeframe} onChange={setTimeframe} />
         <div className="ml-auto flex items-center gap-3 text-sm">
           <div className={`h-2.5 w-2.5 rounded-full ${connected ? "bg-emerald-500" : "bg-amber-400"}`} />
-          <span className="text-gray-300">{connected ? "Live via WebSocket" : "Fallback simulation"}</span>
+          <span className="text-gray-300">{connected ? "Live via WebSocket" : "Waiting for live feed"}</span>
           <span className="font-semibold text-white">${price.toFixed(2)}</span>
           {lastUpdatedAt ? (
             <span className="text-xs text-gray-400">{new Date(lastUpdatedAt).toLocaleTimeString()}</span>

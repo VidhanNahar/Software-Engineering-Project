@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"backend-go/market"
 	"backend-go/middleware"
 	"backend-go/model"
 	"backend-go/store"
@@ -15,11 +16,12 @@ import (
 
 // TradeHandler serves trade-related APIs.
 type TradeHandler struct {
-	store *store.Store
+	store         *store.Store
+	marketService *market.MarketService
 }
 
-func NewTradeHandler(s *store.Store) *TradeHandler {
-	return &TradeHandler{store: s}
+func NewTradeHandler(s *store.Store, marketService *market.MarketService) *TradeHandler {
+	return &TradeHandler{store: s, marketService: marketService}
 }
 
 func (h *TradeHandler) getRequester(r *http.Request) (*model.User, error) {
@@ -63,13 +65,24 @@ func (h *TradeHandler) BuyStock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if market is open
+	isOpen, err := h.store.IsMarketOpen()
+	if err != nil {
+		http.Error(w, "Failed to check market status", http.StatusInternalServerError)
+		return
+	}
+	if !isOpen {
+		http.Error(w, "Market is closed. Trading is not allowed at this time.", http.StatusForbidden)
+		return
+	}
+
 	var req model.TradeOrderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	err := h.store.ExecuteBuyTx(r.Context(), store.TradeRequest{UserID: user.UserID, StockID: req.StockID, Quantity: req.Quantity})
+	err = h.store.ExecuteBuyTx(r.Context(), store.TradeRequest{UserID: user.UserID, StockID: req.StockID, Quantity: req.Quantity})
 	if err != nil {
 		switch {
 		case errors.Is(err, store.ErrInsufficientBalance):
@@ -98,13 +111,24 @@ func (h *TradeHandler) SellStock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if market is open
+	isOpen, err := h.store.IsMarketOpen()
+	if err != nil {
+		http.Error(w, "Failed to check market status", http.StatusInternalServerError)
+		return
+	}
+	if !isOpen {
+		http.Error(w, "Market is closed. Trading is not allowed at this time.", http.StatusForbidden)
+		return
+	}
+
 	var req model.TradeOrderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	err := h.store.ExecuteSellTx(r.Context(), store.TradeRequest{UserID: user.UserID, StockID: req.StockID, Quantity: req.Quantity})
+	err = h.store.ExecuteSellTx(r.Context(), store.TradeRequest{UserID: user.UserID, StockID: req.StockID, Quantity: req.Quantity})
 	if err != nil {
 		switch {
 		case errors.Is(err, store.ErrInsufficientShares):
@@ -127,11 +151,11 @@ func (h *TradeHandler) SellStock(w http.ResponseWriter, r *http.Request) {
 
 // GetStocks returns all stock quotes.
 func (h *TradeHandler) GetStocks(w http.ResponseWriter, r *http.Request) {
-	if err := h.store.RefreshSimulatedPrices(r.Context()); err != nil {
-		http.Error(w, "Failed to update stock prices", http.StatusInternalServerError)
+	isOpen, err := h.store.IsMarketOpen()
+	if err != nil {
+		http.Error(w, "Failed to check market status", http.StatusInternalServerError)
 		return
 	}
-	_ = h.store.EvaluateAlerts()
 
 	stocks, err := h.store.GetStocks()
 	if err != nil {
@@ -141,8 +165,9 @@ func (h *TradeHandler) GetStocks(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
-		"stocks": stocks,
-		"count":  len(stocks),
+		"stocks":      stocks,
+		"count":       len(stocks),
+		"market_open": isOpen,
 	})
 }
 
@@ -238,6 +263,70 @@ func (h *TradeHandler) GetStockByID(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(stock)
+}
+
+func (h *TradeHandler) GetStockTicksBySymbol(w http.ResponseWriter, r *http.Request) {
+	symbol := mux.Vars(r)["symbol"]
+	if symbol == "" {
+		http.Error(w, "Invalid symbol", http.StatusBadRequest)
+		return
+	}
+
+	limit := 200
+	if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
+		parsed, err := strconv.Atoi(rawLimit)
+		if err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+
+	ticks, err := h.store.GetStockTicksBySymbol(symbol, limit)
+	if err != nil {
+		http.Error(w, "Failed to fetch ticks", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"symbol": symbol,
+		"ticks":  ticks,
+		"count":  len(ticks),
+	})
+}
+
+func (h *TradeHandler) GetStockCandlesBySymbol(w http.ResponseWriter, r *http.Request) {
+	symbol := mux.Vars(r)["symbol"]
+	if symbol == "" {
+		http.Error(w, "Invalid symbol", http.StatusBadRequest)
+		return
+	}
+
+	timeframe := r.URL.Query().Get("timeframe")
+	if timeframe == "" {
+		timeframe = "1m"
+	}
+
+	limit := 200
+	if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
+		parsed, err := strconv.Atoi(rawLimit)
+		if err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+
+	candles, err := h.store.GetStockCandlesBySymbol(symbol, timeframe, limit)
+	if err != nil {
+		http.Error(w, "Failed to fetch candles", http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"symbol":    symbol,
+		"timeframe": timeframe,
+		"candles":   candles,
+		"count":     len(candles),
+	})
 }
 
 func (h *TradeHandler) GetStockBySymbol(w http.ResponseWriter, r *http.Request) {
@@ -452,6 +541,74 @@ func (h *TradeHandler) GetAllOrdersAdmin(w http.ResponseWriter, r *http.Request)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{"orders": orders, "count": len(orders)})
+}
+
+// GetMarketStatus returns current market status
+func (h *TradeHandler) GetMarketStatus(w http.ResponseWriter, r *http.Request) {
+	status, err := h.store.GetMarketStatus()
+	if err != nil {
+		http.Error(w, "Failed to fetch market status", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(status)
+}
+
+// StartMarket opens the market for trading (admin only)
+func (h *TradeHandler) StartMarket(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.requireAdmin(w, r); !ok {
+		return
+	}
+
+	var (
+		status *store.MarketStatus
+		err    error
+	)
+	if h.marketService != nil {
+		status, err = h.marketService.StartMarket()
+	} else {
+		status, err = h.store.StartMarket()
+	}
+	if err != nil {
+		http.Error(w, "Failed to start market", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]any{
+		"message": "Market started",
+		"status":  status,
+	})
+}
+
+// StopMarket closes the market for trading (admin only)
+func (h *TradeHandler) StopMarket(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.requireAdmin(w, r); !ok {
+		return
+	}
+
+	var (
+		status *store.MarketStatus
+		err    error
+	)
+	if h.marketService != nil {
+		status, err = h.marketService.StopMarket()
+	} else {
+		status, err = h.store.StopMarket()
+	}
+	if err != nil {
+		http.Error(w, "Failed to stop market", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]any{
+		"message": "Market stopped",
+		"status":  status,
+	})
 }
 
 func (h *TradeHandler) GetWatchlist(w http.ResponseWriter, r *http.Request) {

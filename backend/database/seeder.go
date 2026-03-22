@@ -11,7 +11,10 @@ var migrationFiles = []string{
 	"schema.sql",
 	"user_role_kyc_upgrade.sql",
 	"stock_bhavcopy_upgrade.sql",
+	"default_stock_seed.sql",
 	"alerts_notifications_upgrade.sql",
+	"market_status.sql",
+	"stock_ticks_candles.sql",
 }
 
 // RunAutoSeeder applies SQL migrations at startup so new developers do not need

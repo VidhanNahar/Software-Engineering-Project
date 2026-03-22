@@ -21,9 +21,14 @@ export const apiCall = async (endpoint: string, options: RequestInit = {}) => {
     let errorMsg = "Something went wrong";
     try {
       const data = await response.json();
-      errorMsg = data.error || errorMsg;
+      errorMsg = data.error || data.message || errorMsg;
     } catch (e) {
-      // Ignored
+      try {
+        const text = await response.text();
+        if (text) errorMsg = text;
+      } catch {
+        // Ignored
+      }
     }
 
     if (response.status === 401) {
@@ -79,7 +84,16 @@ export const stockApi = {
   search: (query: string) =>
     apiCall(`/stocks/search?q=${encodeURIComponent(query)}`),
   getById: (id: string) => apiCall(`/stocks/${id}`),
+  getBySymbol: (symbol: string) => apiCall(`/stocks/symbol/${encodeURIComponent(symbol)}`),
   getStats: (id: string) => apiCall(`/stocks/${id}/stats`),
+  getTicks: (symbol: string, limit = 200) =>
+    apiCall(`/stocks/symbol/${encodeURIComponent(symbol)}/ticks?limit=${limit}`),
+  getCandles: (symbol: string, timeframe = "1m", limit = 200) =>
+    apiCall(
+      `/stocks/symbol/${encodeURIComponent(symbol)}/candles?timeframe=${encodeURIComponent(
+        timeframe,
+      )}&limit=${limit}`,
+    ),
 };
 
 export const transactionApi = {
@@ -133,4 +147,17 @@ export const adminApi = {
       method: "DELETE",
     }),
   getTopStocks: () => apiCall("/admin/stocks/top"),
+  getMarketStatus: () =>
+    apiCall(`/market/status?ts=${Date.now()}`, {
+      method: "GET",
+      cache: "no-store",
+    }),
+  startMarket: () =>
+    apiCall("/admin/market/start", {
+      method: "POST",
+    }),
+  stopMarket: () =>
+    apiCall("/admin/market/stop", {
+      method: "POST",
+    }),
 };

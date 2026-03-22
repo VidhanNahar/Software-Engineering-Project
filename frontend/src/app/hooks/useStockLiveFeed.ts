@@ -17,6 +17,7 @@ export function useStockLiveFeed(selectedSymbol: string, basePrice: number, time
   const [price, setPrice] = useState<number>(basePrice);
   const [connected, setConnected] = useState<boolean>(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | undefined>(undefined);
+  const [marketOpen, setMarketOpen] = useState<boolean>(true);
 
   const normalizedSymbol = useMemo(() => selectedSymbol.toUpperCase(), [selectedSymbol]);
 
@@ -27,7 +28,6 @@ export function useStockLiveFeed(selectedSymbol: string, basePrice: number, time
 
   useEffect(() => {
     let ws: WebSocket | null = null;
-    let fallbackTimer: number | undefined;
 
     const handleLivePrice = (incoming: number) => {
       setPrice(incoming);
@@ -52,10 +52,14 @@ export function useStockLiveFeed(selectedSymbol: string, basePrice: number, time
 
       ws.onmessage = (event: MessageEvent<string>) => {
         try {
-          const payload = JSON.parse(event.data) as { stocks?: SnapshotStock[] };
+          const payload = JSON.parse(event.data) as { stocks?: SnapshotStock[]; market_open?: boolean };
+          if (typeof payload.market_open === "boolean") {
+            setMarketOpen(payload.market_open);
+          }
           if (!payload?.stocks || payload.stocks.length === 0) return;
           const target = payload.stocks.find((s) => s.symbol?.toUpperCase() === normalizedSymbol);
           if (!target || typeof target.price !== "number") return;
+          if (payload.market_open === false) return;
           handleLivePrice(target.price);
         } catch {
           // Ignore malformed websocket payloads.
@@ -65,18 +69,16 @@ export function useStockLiveFeed(selectedSymbol: string, basePrice: number, time
       setConnected(false);
     }
 
-    // Fallback simulation keeps UI live when websocket is unavailable.
-    fallbackTimer = window.setInterval(() => {
-      if (connected) return;
-      const jitter = (Math.random() - 0.5) * Math.max(0.2, price * 0.004);
-      handleLivePrice(Math.max(0.1, price + jitter));
-    }, 2000);
-
     return () => {
-      if (fallbackTimer) window.clearInterval(fallbackTimer);
       if (ws) ws.close();
     };
-  }, [normalizedSymbol, price, connected]);
+  }, [normalizedSymbol]);
+
+  useEffect(() => {
+    if (!marketOpen) return;
+    setCandles(generateMockOHLCV(basePrice, timeframe));
+    setPrice(basePrice);
+  }, [basePrice, timeframe, marketOpen]);
 
   return {
     candles,
