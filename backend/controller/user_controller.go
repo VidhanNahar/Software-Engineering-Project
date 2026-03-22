@@ -175,7 +175,7 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	secret := os.Getenv("JWT_SECRET")
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"userID":          user.UserID,
+		"userID":          user.UserID.String(),
 		"role":            user.Role,
 		"is_kyc_verified": user.IsKYCVerified,
 		"exp":             time.Now().Add(time.Hour * 12).Unix(),

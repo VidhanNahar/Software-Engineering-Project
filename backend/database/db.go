@@ -16,12 +16,12 @@ func Connect(host, port, user, password, dbname string) (*sql.DB, error) {
 
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("failed to open database connection: %w", err)
 	}
 
 	err = db.Ping()
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
 	return db, nil
