@@ -14,6 +14,13 @@ BEGIN
     END IF;
 END$$;
 
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+        CREATE TYPE user_role AS ENUM ('guest', 'user', 'admin');
+    END IF;
+END$$;
+
 -- =============================================================
 -- 1. Users
 -- =============================================================
@@ -22,23 +29,68 @@ CREATE TABLE IF NOT EXISTS users (
     name              VARCHAR(255)  NOT NULL,
     email_id          VARCHAR(255)  UNIQUE,
     password          VARCHAR(255)  NOT NULL,
+    role              user_role     NOT NULL DEFAULT 'guest',
     aadhar_id         NUMERIC(12,0) UNIQUE,
     pan_id            VARCHAR(10)   UNIQUE,
     phone_number      NUMERIC(10,0) UNIQUE,
     date_of_birth     DATE          NOT NULL,
-    is_verified_email BOOLEAN       NOT NULL DEFAULT FALSE
+    is_verified_email BOOLEAN       NOT NULL DEFAULT FALSE,
+    is_kyc_verified   BOOLEAN       NOT NULL DEFAULT FALSE
 );
 
 -- =============================================================
 -- 2. Stock
 -- =============================================================
 CREATE TABLE IF NOT EXISTS stock (
-    stock_id  UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
-    name      VARCHAR(64)    NOT NULL,
-    price     NUMERIC(15,2)  CHECK (price > 0),
-    timestamp TIMESTAMPTZ    NOT NULL,
-    quantity  INTEGER        CHECK (quantity >= 0)
+    stock_id            UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
+    symbol              VARCHAR(32)     UNIQUE NOT NULL,
+    name                VARCHAR(128)    NOT NULL,
+    series              VARCHAR(8)      NOT NULL DEFAULT 'EQ',
+    isin                VARCHAR(32),
+    price               NUMERIC(15,2)   CHECK (price > 0),
+    previous_close      NUMERIC(15,2)   CHECK (previous_close >= 0),
+    open_price          NUMERIC(15,2)   CHECK (open_price >= 0),
+    day_high            NUMERIC(15,2)   CHECK (day_high >= 0),
+    day_low             NUMERIC(15,2)   CHECK (day_low >= 0),
+    close_price         NUMERIC(15,2)   CHECK (close_price >= 0),
+    last_traded_price   NUMERIC(15,2)   CHECK (last_traded_price >= 0),
+    total_traded_qty    BIGINT          CHECK (total_traded_qty >= 0),
+    total_traded_value  NUMERIC(20,2)   CHECK (total_traded_value >= 0),
+    total_trades        BIGINT          CHECK (total_trades >= 0),
+    trade_date          DATE,
+    timestamp           TIMESTAMPTZ     NOT NULL,
+    quantity            BIGINT          CHECK (quantity >= 0),
+
+    CONSTRAINT stock_day_range_valid CHECK (day_high IS NULL OR day_low IS NULL OR day_high >= day_low)
 );
+
+CREATE INDEX IF NOT EXISTS idx_stock_symbol ON stock(symbol);
+CREATE INDEX IF NOT EXISTS idx_stock_trade_date ON stock(trade_date DESC);
+
+-- =============================================================
+-- 2.1 Stock Daily Data (Bhavcopy History)
+-- =============================================================
+CREATE TABLE IF NOT EXISTS stock_daily_data (
+    stock_daily_id       UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
+    stock_id             UUID            NOT NULL REFERENCES stock(stock_id) ON DELETE CASCADE,
+    trade_date           DATE            NOT NULL,
+    series               VARCHAR(8)      NOT NULL,
+    open_price           NUMERIC(15,2)   CHECK (open_price >= 0),
+    day_high             NUMERIC(15,2)   CHECK (day_high >= 0),
+    day_low              NUMERIC(15,2)   CHECK (day_low >= 0),
+    close_price          NUMERIC(15,2)   CHECK (close_price >= 0),
+    last_traded_price    NUMERIC(15,2)   CHECK (last_traded_price >= 0),
+    previous_close       NUMERIC(15,2)   CHECK (previous_close >= 0),
+    total_traded_qty     BIGINT          CHECK (total_traded_qty >= 0),
+    total_traded_value   NUMERIC(20,2)   CHECK (total_traded_value >= 0),
+    total_trades         BIGINT          CHECK (total_trades >= 0),
+    inserted_at          TIMESTAMPTZ     NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT stock_daily_data_unique UNIQUE (stock_id, trade_date),
+    CONSTRAINT stock_daily_day_range_valid CHECK (day_high IS NULL OR day_low IS NULL OR day_high >= day_low)
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_daily_trade_date ON stock_daily_data(trade_date DESC);
 
 -- =============================================================
 -- 3. Portfolio

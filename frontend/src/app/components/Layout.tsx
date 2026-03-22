@@ -55,7 +55,7 @@ export default function Layout() {
       {/* Sidebar */}
       <aside className="w-64 bg-card border-r border-border flex flex-col">
         <div className="p-6 border-b border-border">
-          <h1 className="text-2xl font-bold text-blue-600">TradeHub</h1>
+          <h1 className="text-2xl font-bold text-blue-600">FinXGrow</h1>
           <p className="text-sm text-muted-foreground">Professional Trading</p>
         </div>
 

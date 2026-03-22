@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 )
 
 // TradeHandler serves trade-related APIs.
@@ -20,11 +22,44 @@ func NewTradeHandler(s *store.Store) *TradeHandler {
 	return &TradeHandler{store: s}
 }
 
-// BuyStock executes a buy transaction for authenticated user.
-func (h *TradeHandler) BuyStock(w http.ResponseWriter, r *http.Request) {
+func (h *TradeHandler) getRequester(r *http.Request) (*model.User, error) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(uuid.UUID)
 	if !ok {
+		return nil, errors.New("unauthorized")
+	}
+	return h.store.GetUserByID(userID)
+}
+
+func (h *TradeHandler) requireTradableUser(w http.ResponseWriter, r *http.Request) (*model.User, bool) {
+	user, err := h.getRequester(r)
+	if err != nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return nil, false
+	}
+	if !user.IsKYCVerified || user.Role == "guest" {
+		http.Error(w, "Complete KYC to start trading", http.StatusForbidden)
+		return nil, false
+	}
+	return user, true
+}
+
+func (h *TradeHandler) requireAdmin(w http.ResponseWriter, r *http.Request) (*model.User, bool) {
+	user, err := h.getRequester(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return nil, false
+	}
+	if user.Role != "admin" {
+		http.Error(w, "Admin access required", http.StatusForbidden)
+		return nil, false
+	}
+	return user, true
+}
+
+// BuyStock executes a buy transaction for authenticated user.
+func (h *TradeHandler) BuyStock(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.requireTradableUser(w, r)
+	if !ok {
 		return
 	}
 
@@ -34,7 +69,7 @@ func (h *TradeHandler) BuyStock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.store.ExecuteBuyTx(r.Context(), store.TradeRequest{UserID: userID, StockID: req.StockID, Quantity: req.Quantity})
+	err := h.store.ExecuteBuyTx(r.Context(), store.TradeRequest{UserID: user.UserID, StockID: req.StockID, Quantity: req.Quantity})
 	if err != nil {
 		switch {
 		case errors.Is(err, store.ErrInsufficientBalance):
@@ -58,9 +93,8 @@ func (h *TradeHandler) BuyStock(w http.ResponseWriter, r *http.Request) {
 
 // SellStock executes a sell transaction for authenticated user.
 func (h *TradeHandler) SellStock(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value(middleware.UserIDKey).(uuid.UUID)
+	user, ok := h.requireTradableUser(w, r)
 	if !ok {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -70,7 +104,7 @@ func (h *TradeHandler) SellStock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.store.ExecuteSellTx(r.Context(), store.TradeRequest{UserID: userID, StockID: req.StockID, Quantity: req.Quantity})
+	err := h.store.ExecuteSellTx(r.Context(), store.TradeRequest{UserID: user.UserID, StockID: req.StockID, Quantity: req.Quantity})
 	if err != nil {
 		switch {
 		case errors.Is(err, store.ErrInsufficientShares):
@@ -93,6 +127,12 @@ func (h *TradeHandler) SellStock(w http.ResponseWriter, r *http.Request) {
 
 // GetStocks returns all stock quotes.
 func (h *TradeHandler) GetStocks(w http.ResponseWriter, r *http.Request) {
+	if err := h.store.RefreshSimulatedPrices(r.Context()); err != nil {
+		http.Error(w, "Failed to update stock prices", http.StatusInternalServerError)
+		return
+	}
+	_ = h.store.EvaluateAlerts()
+
 	stocks, err := h.store.GetStocks()
 	if err != nil {
 		http.Error(w, "Failed to fetch stocks", http.StatusInternalServerError)
@@ -100,41 +140,504 @@ func (h *TradeHandler) GetStocks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stocks)
+	json.NewEncoder(w).Encode(map[string]any{
+		"stocks": stocks,
+		"count":  len(stocks),
+	})
 }
 
 // GetPortfolio returns authenticated user's holdings.
 func (h *TradeHandler) GetPortfolio(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value(middleware.UserIDKey).(uuid.UUID)
-	if !ok {
+	user, err := h.getRequester(r)
+	if err != nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	positions, err := h.store.GetPortfolioByUser(userID)
+	positions, err := h.store.GetPortfolioByUser(user.UserID)
 	if err != nil {
 		http.Error(w, "Failed to fetch portfolio", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(positions)
+	json.NewEncoder(w).Encode(map[string]any{"holdings": positions, "count": len(positions)})
 }
 
 // GetOrders returns authenticated user's transaction history.
 func (h *TradeHandler) GetOrders(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value(middleware.UserIDKey).(uuid.UUID)
-	if !ok {
+	user, err := h.getRequester(r)
+	if err != nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	orders, err := h.store.GetOrdersByUser(userID)
+	orders, err := h.store.GetOrdersByUser(user.UserID)
 	if err != nil {
 		http.Error(w, "Failed to fetch orders", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(orders)
+	json.NewEncoder(w).Encode(map[string]any{"orders": orders, "count": len(orders)})
+}
+
+func (h *TradeHandler) GetWallet(w http.ResponseWriter, r *http.Request) {
+	user, err := h.getRequester(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	balance, locked, err := h.store.GetWalletByUser(user.UserID)
+	if err != nil {
+		http.Error(w, "Failed to fetch wallet", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"balance":        balance,
+		"locked_balance": locked,
+	})
+}
+
+func (h *TradeHandler) SearchStocks(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		json.NewEncoder(w).Encode(map[string]any{"stocks": []any{}, "count": 0})
+		return
+	}
+
+	stocks, err := h.store.SearchStocks(query)
+	if err != nil {
+		http.Error(w, "Failed to search stocks", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"stocks": stocks, "count": len(stocks)})
+}
+
+func (h *TradeHandler) GetStockByID(w http.ResponseWriter, r *http.Request) {
+	stockID, err := uuid.Parse(mux.Vars(r)["id"])
+	if err != nil {
+		http.Error(w, "Invalid stock id", http.StatusBadRequest)
+		return
+	}
+
+	stock, err := h.store.GetStockByID(stockID)
+	if err != nil {
+		if errors.Is(err, store.ErrStockNotFound) {
+			http.Error(w, "Stock not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Failed to fetch stock", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stock)
+}
+
+func (h *TradeHandler) GetStockBySymbol(w http.ResponseWriter, r *http.Request) {
+	symbol := mux.Vars(r)["symbol"]
+	if symbol == "" {
+		http.Error(w, "Invalid symbol", http.StatusBadRequest)
+		return
+	}
+
+	stock, err := h.store.GetStockBySymbol(symbol)
+	if err != nil {
+		if errors.Is(err, store.ErrStockNotFound) {
+			http.Error(w, "Stock not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Failed to fetch stock", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(stock)
+}
+
+func (h *TradeHandler) GetStockHistory(w http.ResponseWriter, r *http.Request) {
+	stockID, err := uuid.Parse(mux.Vars(r)["id"])
+	if err != nil {
+		http.Error(w, "Invalid stock id", http.StatusBadRequest)
+		return
+	}
+
+	limit := 120
+	if rawLimit := r.URL.Query().Get("limit"); rawLimit != "" {
+		parsed, err := strconv.Atoi(rawLimit)
+		if err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+
+	history, err := h.store.GetStockHistory(stockID, limit)
+	if err != nil {
+		http.Error(w, "Failed to fetch stock history", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"history": history, "count": len(history)})
+}
+
+func (h *TradeHandler) GetStockStats(w http.ResponseWriter, r *http.Request) {
+	stockID, err := uuid.Parse(mux.Vars(r)["id"])
+	if err != nil {
+		http.Error(w, "Invalid stock id", http.StatusBadRequest)
+		return
+	}
+
+	stock, err := h.store.GetStockByID(stockID)
+	if err != nil {
+		if errors.Is(err, store.ErrStockNotFound) {
+			http.Error(w, "Stock not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Failed to fetch stock", http.StatusInternalServerError)
+		return
+	}
+
+	history, err := h.store.GetStockHistory(stockID, 30)
+	if err != nil {
+		http.Error(w, "Failed to fetch stock history", http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]any{
+		"stock":   stock,
+		"history": history,
+	})
+}
+
+func (h *TradeHandler) AdminCreateStock(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.requireAdmin(w, r); !ok {
+		return
+	}
+
+	var req model.AdminStockUpsertRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Symbol == "" || req.Name == "" || req.Price <= 0 {
+		http.Error(w, "symbol, name and positive price are required", http.StatusBadRequest)
+		return
+	}
+	if req.Series == "" {
+		req.Series = "EQ"
+	}
+
+	if err := h.store.AdminCreateStock(req); err != nil {
+		http.Error(w, "Failed to create stock", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Stock created/updated"})
+}
+
+func (h *TradeHandler) AdminUpdateStock(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.requireAdmin(w, r); !ok {
+		return
+	}
+
+	stockID, err := uuid.Parse(mux.Vars(r)["id"])
+	if err != nil {
+		http.Error(w, "Invalid stock id", http.StatusBadRequest)
+		return
+	}
+
+	var req model.AdminStockUpsertRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	existing, err := h.store.GetStockByID(stockID)
+	if err != nil {
+		if errors.Is(err, store.ErrStockNotFound) {
+			http.Error(w, "Stock not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Failed to fetch stock", http.StatusInternalServerError)
+		return
+	}
+
+	if req.Symbol == "" {
+		req.Symbol = existing.Symbol
+	}
+	if req.Name == "" {
+		req.Name = existing.Name
+	}
+	if req.Price <= 0 {
+		req.Price = existing.Price
+	}
+	if req.Series == "" {
+		if existing.Series != "" {
+			req.Series = existing.Series
+		} else {
+			req.Series = "EQ"
+		}
+	}
+
+	err = h.store.AdminUpdateStock(stockID, req)
+	if err != nil {
+		if errors.Is(err, store.ErrStockNotFound) {
+			http.Error(w, "Stock not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Failed to update stock", http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]string{"message": "Stock updated"})
+}
+
+func (h *TradeHandler) AdminDeleteStock(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.requireAdmin(w, r); !ok {
+		return
+	}
+
+	stockID, err := uuid.Parse(mux.Vars(r)["id"])
+	if err != nil {
+		http.Error(w, "Invalid stock id", http.StatusBadRequest)
+		return
+	}
+
+	err = h.store.AdminDeleteStock(stockID)
+	if err != nil {
+		if errors.Is(err, store.ErrStockNotFound) {
+			http.Error(w, "Stock not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Failed to delete stock", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *TradeHandler) GetTopStocks(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.requireAdmin(w, r); !ok {
+		return
+	}
+
+	stocks, err := h.store.GetTopStocks(100)
+	if err != nil {
+		http.Error(w, "Failed to fetch top stocks", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"stocks": stocks, "count": len(stocks)})
+}
+
+func (h *TradeHandler) GetAllOrdersAdmin(w http.ResponseWriter, r *http.Request) {
+	if _, ok := h.requireAdmin(w, r); !ok {
+		return
+	}
+
+	orders, err := h.store.GetAllOrders(500)
+	if err != nil {
+		http.Error(w, "Failed to fetch orders", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"orders": orders, "count": len(orders)})
+}
+
+func (h *TradeHandler) GetWatchlist(w http.ResponseWriter, r *http.Request) {
+	user, err := h.getRequester(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	watchlist, err := h.store.GetWatchlistByUser(user.UserID)
+	if err != nil {
+		http.Error(w, "Failed to fetch watchlist", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"watchlist": watchlist, "count": len(watchlist)})
+}
+
+func (h *TradeHandler) AddWatchlist(w http.ResponseWriter, r *http.Request) {
+	user, err := h.getRequester(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req struct {
+		StockID       uuid.UUID `json:"stock_id"`
+		WatchlistName string    `json:"watchlist_name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.StockID == uuid.Nil {
+		http.Error(w, "stock_id is required", http.StatusBadRequest)
+		return
+	}
+
+	watchlistID, err := h.store.AddWatchlistItem(user.UserID, req.StockID, req.WatchlistName)
+	if err != nil {
+		http.Error(w, "Failed to add watchlist item", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]any{"message": "Added to watchlist", "watchlist_id": watchlistID})
+}
+
+func (h *TradeHandler) RemoveWatchlist(w http.ResponseWriter, r *http.Request) {
+	user, err := h.getRequester(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	watchlistID, err := uuid.Parse(mux.Vars(r)["id"])
+	if err != nil {
+		http.Error(w, "Invalid watchlist id", http.StatusBadRequest)
+		return
+	}
+
+	err = h.store.RemoveWatchlistItem(user.UserID, watchlistID)
+	if err != nil {
+		if errors.Is(err, store.ErrWatchlistItemNotFound) {
+			http.Error(w, "Watchlist item not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Failed to remove watchlist item", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *TradeHandler) CreateAlert(w http.ResponseWriter, r *http.Request) {
+	user, err := h.getRequester(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req struct {
+		StockID     uuid.UUID `json:"stock_id"`
+		TargetPrice float64   `json:"target_price"`
+		Direction   string    `json:"direction"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.StockID == uuid.Nil || req.TargetPrice <= 0 || (req.Direction != "above" && req.Direction != "below") {
+		http.Error(w, "stock_id, positive target_price and direction(above|below) are required", http.StatusBadRequest)
+		return
+	}
+
+	alert, err := h.store.CreateAlert(user.UserID, req.StockID, req.TargetPrice, req.Direction)
+	if err != nil {
+		http.Error(w, "Failed to create alert", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(alert)
+}
+
+func (h *TradeHandler) GetAlerts(w http.ResponseWriter, r *http.Request) {
+	user, err := h.getRequester(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	alerts, err := h.store.GetAlertsByUser(user.UserID)
+	if err != nil {
+		http.Error(w, "Failed to fetch alerts", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"alerts": alerts, "count": len(alerts)})
+}
+
+func (h *TradeHandler) DeleteAlert(w http.ResponseWriter, r *http.Request) {
+	user, err := h.getRequester(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	alertID, err := uuid.Parse(mux.Vars(r)["id"])
+	if err != nil {
+		http.Error(w, "Invalid alert id", http.StatusBadRequest)
+		return
+	}
+
+	err = h.store.DeleteAlert(user.UserID, alertID)
+	if err != nil {
+		if errors.Is(err, store.ErrAlertNotFound) {
+			http.Error(w, "Alert not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Failed to delete alert", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *TradeHandler) GetNotifications(w http.ResponseWriter, r *http.Request) {
+	user, err := h.getRequester(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	unreadOnly := r.URL.Query().Get("unread") == "true"
+	notifications, err := h.store.GetNotificationsByUser(user.UserID, unreadOnly)
+	if err != nil {
+		http.Error(w, "Failed to fetch notifications", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"notifications": notifications, "count": len(notifications)})
+}
+
+func (h *TradeHandler) MarkNotificationRead(w http.ResponseWriter, r *http.Request) {
+	user, err := h.getRequester(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	notificationID, err := uuid.Parse(mux.Vars(r)["id"])
+	if err != nil {
+		http.Error(w, "Invalid notification id", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.store.MarkNotificationRead(user.UserID, notificationID); err != nil {
+		http.Error(w, "Failed to mark notification as read", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

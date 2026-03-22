@@ -11,9 +11,11 @@ type User struct {
 	UserName        string    `json:"name"`
 	EmailID         string    `json:"email_id"`
 	Password        string    `json:"password"`
+	Role            string    `json:"role"`
 	AadharID        *string   `json:"aadhar_id"`
 	PanID           *string   `json:"pan_id"`
 	PhoneNumber     *int64    `json:"phone_number"`
 	DateOfBirth     time.Time `json:"date_of_birth"`
 	IsVerifiedEmail bool      `json:"is_verified_email"`
+	IsKYCVerified   bool      `json:"is_kyc_verified"`
 }

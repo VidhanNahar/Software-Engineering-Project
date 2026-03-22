@@ -102,6 +102,16 @@ func (s *Store) ExecuteBuyTx(ctx context.Context, req TradeRequest) error {
 		return err
 	}
 
+	// Best-effort transaction confirmation notification.
+	_, _ = tx.ExecContext(ctx, `
+		INSERT INTO notifications (user_id, type, title, message)
+		VALUES ($1, $2, $3, $4)`,
+		req.UserID,
+		"trade",
+		"Buy order executed",
+		"Your buy order was executed successfully.",
+	)
+
 	// Commit makes all buy changes visible together.
 	return tx.Commit()
 }
@@ -173,6 +183,16 @@ func (s *Store) ExecuteSellTx(ctx context.Context, req TradeRequest) error {
 	if err != nil {
 		return err
 	}
+
+	// Best-effort transaction confirmation notification.
+	_, _ = tx.ExecContext(ctx, `
+		INSERT INTO notifications (user_id, type, title, message)
+		VALUES ($1, $2, $3, $4)`,
+		req.UserID,
+		"trade",
+		"Sell order executed",
+		"Your sell order was executed successfully.",
+	)
 
 	// Commit makes all sell changes visible together.
 	return tx.Commit()

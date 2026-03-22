@@ -151,7 +151,7 @@ export default function Login() {
                   ? "Verify Email"
                   : isRegistering
                     ? "Create an Account"
-                    : "Welcome to TradeHub"}
+                    : "Welcome to FinXGrow"}
               </CardTitle>
               <CardDescription className="text-gray-400">
                 {isVerifying

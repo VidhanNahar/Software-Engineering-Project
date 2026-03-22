@@ -175,8 +175,10 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	secret := os.Getenv("JWT_SECRET")
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"userID": user.UserID,
-		"exp":    time.Now().Add(time.Hour * 12).Unix(),
+		"userID":          user.UserID,
+		"role":            user.Role,
+		"is_kyc_verified": user.IsKYCVerified,
+		"exp":             time.Now().Add(time.Hour * 12).Unix(),
 	})
 
 	tokenString, err := token.SignedString([]byte(secret))
@@ -186,8 +188,56 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"token": tokenString,
+	json.NewEncoder(w).Encode(map[string]any{
+		"token":           tokenString,
+		"user_id":         user.UserID,
+		"role":            user.Role,
+		"is_kyc_verified": user.IsKYCVerified,
+	})
+}
+
+func (h *UserHandler) CompleteKYC(w http.ResponseWriter, r *http.Request) {
+	requesterID, ok := r.Context().Value(middleware.UserIDKey).(uuid.UUID)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req struct {
+		AadharID *string `json:"aadhar_id"`
+		PanID    *string `json:"pan_id"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.AadharID == nil && req.PanID == nil {
+		http.Error(w, "At least one KYC field is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.store.CompleteKYC(requesterID, req.AadharID, req.PanID); err != nil {
+		if err == store.ErrUserNotFound {
+			http.Error(w, "User not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Failed to complete KYC", http.StatusInternalServerError)
+		return
+	}
+
+	updated, err := h.store.GetUserByID(requesterID)
+	if err != nil {
+		http.Error(w, "Failed to fetch updated user", http.StatusInternalServerError)
+		return
+	}
+
+	updated.Password = ""
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"message": "KYC completed. You can now trade.",
+		"user":    updated,
 	})
 }
 
@@ -206,8 +256,11 @@ func (h *UserHandler) UpdateUserByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if userID != requesterID {
-		http.Error(w, "Unauthorized: you can edit only your profile", http.StatusForbidden)
-		return
+		requester, err := h.store.GetUserByID(requesterID)
+		if err != nil || requester.Role != "admin" {
+			http.Error(w, "Unauthorized: you can edit only your profile", http.StatusForbidden)
+			return
+		}
 	}
 
 	var reqUser model.User
@@ -242,7 +295,7 @@ func (h *UserHandler) UpdateUserByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/type")
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode("Updated user successfully")
 }
 
@@ -262,8 +315,11 @@ func (h *UserHandler) DeleteUserByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if userID != requesterID {
-		http.Error(w, "Unauthorized: you can delete only your profile", http.StatusForbidden)
-		return
+		requester, err := h.store.GetUserByID(requesterID)
+		if err != nil || requester.Role != "admin" {
+			http.Error(w, "Unauthorized: you can delete only your profile", http.StatusForbidden)
+			return
+		}
 	}
 
 	if err := h.store.DeleteUserByID(userID); err != nil {
@@ -275,6 +331,18 @@ func (h *UserHandler) DeleteUserByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) GetUsers(w http.ResponseWriter, r *http.Request) {
+	requesterID, ok := r.Context().Value(middleware.UserIDKey).(uuid.UUID)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	requester, err := h.store.GetUserByID(requesterID)
+	if err != nil || requester.Role != "admin" {
+		http.Error(w, "Admin access required", http.StatusForbidden)
+		return
+	}
+
 	users, err := h.store.GetUsers()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -296,7 +364,7 @@ func (h *UserHandler) GetUserByID(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.store.GetUserByID(userID)
 	if err != nil {
-		if err.Error() == "sql: no rows in result set" {
+		if err == store.ErrUserNotFound {
 			http.Error(w, "User not found", http.StatusNotFound)
 		} else {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -309,4 +377,66 @@ func (h *UserHandler) GetUserByID(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(user)
+}
+
+func (h *UserHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		RefreshToken string `json:"refresh_token"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.RefreshToken == "" {
+		http.Error(w, "refresh_token is required", http.StatusBadRequest)
+		return
+	}
+
+	secret := os.Getenv("JWT_SECRET")
+	token, err := jwt.Parse(req.RefreshToken, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(secret), nil
+	})
+	if err != nil || !token.Valid {
+		http.Error(w, "Invalid refresh token", http.StatusUnauthorized)
+		return
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		http.Error(w, "Invalid token claims", http.StatusUnauthorized)
+		return
+	}
+
+	userID, _ := claims["userID"]
+	role, _ := claims["role"]
+	kyc, _ := claims["is_kyc_verified"]
+
+	newToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"userID":          userID,
+		"role":            role,
+		"is_kyc_verified": kyc,
+		"exp":             time.Now().Add(time.Hour * 12).Unix(),
+	})
+
+	accessToken, err := newToken.SignedString([]byte(secret))
+	if err != nil {
+		http.Error(w, "Error signing token", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"access_token":  accessToken,
+		"refresh_token": req.RefreshToken,
+	})
+}
+
+func (h *UserHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	// Stateless JWT logout: frontend clears local tokens.
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"message": "Logged out successfully"})
 }
