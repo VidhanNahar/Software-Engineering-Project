@@ -130,6 +130,79 @@ export default function Portfolio() {
     };
 
     fetchPortfolioData();
+
+    // Establish WebSocket connection for real-time price updates
+    let ws: WebSocket | null = null;
+    try {
+      const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+      ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws/stocks`);
+
+      ws.onopen = () => {
+        console.log("💫 Portfolio WebSocket connected");
+      };
+
+      ws.onmessage = (evt) => {
+        try {
+          const data = JSON.parse(evt.data);
+
+          // If market is closed, don't update prices
+          if (data.market_open === false) {
+            console.debug("📊 Market closed, freezing Portfolio prices");
+            return;
+          }
+
+          // Update holdings with real-time price changes
+          if (data.type === "stock_tick" || data.type === "stocks_snapshot") {
+            const incomingStocks = data.stocks || data.ticks || [];
+
+            setHoldings((prev) =>
+              prev.map((holding) => {
+                const updated = incomingStocks.find(
+                  (s: Record<string, unknown>) => s.symbol === holding.symbol
+                );
+                if (updated && typeof updated.price === "number") {
+                  const newPrice = updated.price;
+                  const newTotalValue = holding.quantity * newPrice;
+                  const newTotalGainLoss =
+                    newTotalValue - holding.quantity * holding.avgPrice;
+
+                  return {
+                    ...holding,
+                    currentPrice: newPrice,
+                    totalValue: newTotalValue,
+                    totalGainLoss: newTotalGainLoss,
+                    gainLossPercent:
+                      holding.quantity * holding.avgPrice > 0
+                        ? (newTotalGainLoss / (holding.quantity * holding.avgPrice)) *
+                          100
+                        : 0,
+                  };
+                }
+                return holding;
+              })
+            );
+          }
+        } catch (e) {
+          // Ignore malformed WebSocket payloads
+        }
+      };
+
+      ws.onerror = () => {
+        console.log("⚠️ Portfolio WebSocket error");
+      };
+
+      ws.onclose = () => {
+        console.log("🔌 Portfolio WebSocket disconnected");
+      };
+    } catch (error) {
+      console.error("Failed to connect to WebSocket", error);
+    }
+
+    return () => {
+      if (ws) {
+        ws.close();
+      }
+    };
   }, []);
 
   if (loading) {

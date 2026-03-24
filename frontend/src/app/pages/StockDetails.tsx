@@ -29,6 +29,7 @@ export default function StockDetails() {
   const [loading, setLoading] = useState(true);
   const [stock, setStock] = useState<StockEntity | null>(null);
   const [stockOptions, setStockOptions] = useState<StockOption[]>([]);
+  const [marketOpen, setMarketOpen] = useState<boolean>(false);
 
   const [inWatchlist, setInWatchlist] = useState(false);
   const [watchlistItemId, setWatchlistItemId] = useState<string | null>(null);
@@ -36,49 +37,113 @@ export default function StockDetails() {
 
   const selectedSymbol = (symbol || stock?.symbol || "").toUpperCase();
 
+  const loadStock = async () => {
+    if (!symbol) return;
+    try {
+      const [searchRes, allStocksRes, watchRes] = await Promise.all([
+        stockApi.search(symbol),
+        stockApi.getAll(),
+        watchlistApi.get().catch(() => ({ watchlist: [] })),
+      ]);
+
+      const allStocks: StockEntity[] = allStocksRes?.stocks || [];
+      const target = (searchRes?.stocks || []).find(
+        (s: StockEntity) => s.symbol.toUpperCase() === symbol.toUpperCase(),
+      );
+
+      if (!target) {
+        setStock(null);
+        return;
+      }
+
+      setStock(target);
+      setStockOptions(
+        allStocks.map((s) => ({
+          stockId: s.stock_id,
+          symbol: s.symbol,
+          name: s.name,
+        })),
+      );
+
+      const watchlist = watchRes?.watchlist || [];
+      const existing = watchlist.find((w: any) => w.stock_id === target.stock_id);
+      setInWatchlist(Boolean(existing));
+      setWatchlistItemId(existing?.watchlist_id ?? null);
+    } catch {
+      toast.error("Failed to load stock details");
+    }
+  };
+
   useEffect(() => {
-    const loadStock = async () => {
-      if (!symbol) return;
-      setLoading(true);
+    if (!symbol) return;
+    setLoading(true);
+    loadStock().finally(() => setLoading(false));
+  }, [symbol]);
+
+  // Listen for market status and real-time price updates
+  useEffect(() => {
+    const connectMarketListener = () => {
       try {
-        const [searchRes, allStocksRes, watchRes] = await Promise.all([
-          stockApi.search(symbol),
-          stockApi.getAll(),
-          watchlistApi.get().catch(() => ({ watchlist: [] })),
-        ]);
+        const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+        const ws = new WebSocket(`${protocol}://${window.location.host}/ws/stocks`);
 
-        const allStocks: StockEntity[] = allStocksRes?.stocks || [];
-        const target = (searchRes?.stocks || []).find(
-          (s: StockEntity) => s.symbol.toUpperCase() === symbol.toUpperCase(),
-        );
+        ws.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data) as { 
+              stocks?: any[]; 
+              ticks?: any[];
+              market_open?: boolean;
+            };
+            
+            if (typeof payload.market_open === "boolean") {
+              setMarketOpen(payload.market_open);
+              // If market closed, stop updating
+              if (!payload.market_open) {
+                return;
+              }
+            }
+            
+            // Update stock price in header if this is our symbol
+            if (stock && (payload.stocks || payload.ticks)) {
+              const stocksArray = payload.stocks || payload.ticks;
+              const updatedStock = stocksArray.find(
+                (s) => (s.symbol || s.Symbol || "").toUpperCase() === stock.symbol.toUpperCase()
+              );
+              
+              if (updatedStock && typeof updatedStock.price === "number") {
+                setStock((prev) => {
+                  if (!prev) return prev;
+                  const newPrice = updatedStock.price;
+                  const change = newPrice - prev.previous_close;
+                  const changePercent = prev.previous_close !== 0 ? (change / prev.previous_close) * 100 : 0;
+                  
+                  return {
+                    ...prev,
+                    price: newPrice,
+                    change,
+                    change_percent: changePercent,
+                  };
+                });
+              }
+            }
+          } catch {
+            // Ignore parse errors
+          }
+        };
 
-        if (!target) {
-          setStock(null);
-          return;
-        }
-
-        setStock(target);
-        setStockOptions(
-          allStocks.map((s) => ({
-            stockId: s.stock_id,
-            symbol: s.symbol,
-            name: s.name,
-          })),
-        );
-
-        const watchlist = watchRes?.watchlist || [];
-        const existing = watchlist.find((w: any) => w.stock_id === target.stock_id);
-        setInWatchlist(Boolean(existing));
-        setWatchlistItemId(existing?.watchlist_id ?? null);
+        return () => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.close();
+          }
+        };
       } catch {
-        toast.error("Failed to load stock details");
-      } finally {
-        setLoading(false);
+        return () => {};
       }
     };
 
-    loadStock();
-  }, [symbol]);
+    const cleanup = connectMarketListener();
+    return cleanup;
+  }, [stock?.symbol, stock?.previous_close]);
 
   const marketCap = useMemo(() => {
     if (!stock) return 0;

@@ -76,6 +76,67 @@ export default function Trade() {
       }
     };
     fetchData();
+
+    // Establish WebSocket connection for real-time price updates
+    let ws: WebSocket | null = null;
+    try {
+      const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+      ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws/stocks`);
+
+      ws.onopen = () => {
+        console.log("💫 Trade WebSocket connected");
+      };
+
+      ws.onmessage = (evt) => {
+        try {
+          const data = JSON.parse(evt.data);
+
+          // If market is closed, don't update prices
+          if (data.market_open === false) {
+            console.debug("📊 Market closed, freezing Trade prices");
+            return;
+          }
+
+          // Update stocks with real-time prices
+          if (data.type === "stock_tick" || data.type === "stocks_snapshot") {
+            const incomingStocks = data.stocks || data.ticks || [];
+
+            setStocks((prev) =>
+              prev.map((stock) => {
+                const updated = incomingStocks.find(
+                  (s: Record<string, unknown>) => s.symbol === stock.symbol
+                );
+                if (updated && typeof updated.price === "number") {
+                  return {
+                    ...stock,
+                    price: updated.price,
+                  };
+                }
+                return stock;
+              })
+            );
+          }
+        } catch (e) {
+          // Ignore malformed WebSocket payloads
+        }
+      };
+
+      ws.onerror = () => {
+        console.log("⚠️ Trade WebSocket error");
+      };
+
+      ws.onclose = () => {
+        console.log("🔌 Trade WebSocket disconnected");
+      };
+    } catch (error) {
+      console.error("Failed to connect to WebSocket", error);
+    }
+
+    return () => {
+      if (ws) {
+        ws.close();
+      }
+    };
   }, [state?.symbol]);
 
   const selectedStock = stocks.find((s) => s.stock_id === selectedStockId);

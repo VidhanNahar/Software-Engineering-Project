@@ -39,8 +39,7 @@ func (s *Store) SimulateTickCycle(ctx context.Context, now time.Time) ([]model.S
 			COALESCE(total_trades, 0) AS total_trades
 		FROM stock
 		WHERE price IS NOT NULL
-		ORDER BY symbol
-		FOR UPDATE`)
+		ORDER BY symbol`)
 	if err != nil {
 		return nil, err
 	}

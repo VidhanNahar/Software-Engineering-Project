@@ -20,4 +20,5 @@ export interface LiveFeedState {
   price: number;
   connected: boolean;
   lastUpdatedAt?: number;
+  marketOpen: boolean;
 }

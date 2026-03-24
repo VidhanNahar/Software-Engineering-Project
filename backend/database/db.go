@@ -8,7 +8,6 @@ import (
 	_ "github.com/lib/pq"
 )
 
-
 func Connect(host, port, user, password, dbname string) (*sql.DB, error) {
 	sslMode := os.Getenv("DB_SSLMODE")
 	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
@@ -18,6 +17,11 @@ func Connect(host, port, user, password, dbname string) (*sql.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database connection: %w", err)
 	}
+
+	// Configure connection pool for high concurrency
+	db.SetMaxOpenConns(50)   // Max concurrent connections
+	db.SetMaxIdleConns(10)   // Min idle connections to keep open
+	db.SetConnMaxLifetime(0) // No lifetime limit
 
 	err = db.Ping()
 	if err != nil {

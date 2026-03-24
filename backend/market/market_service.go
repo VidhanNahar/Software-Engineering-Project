@@ -4,6 +4,7 @@ import (
 	"backend-go/model"
 	"backend-go/store"
 	"context"
+	"log"
 	"time"
 )
 
@@ -32,23 +33,33 @@ func (s *MarketService) StopEngine() {
 }
 
 func (s *MarketService) StartMarket() (*store.MarketStatus, error) {
+	log.Println("🚀 StartMarket called...")
 	status, err := s.store.StartMarket()
 	if err != nil {
+		log.Println("❌ Failed to start market in store:", err)
 		return nil, err
 	}
+	log.Println("✅ Market started in store, starting engine...")
 	s.EnsureEngineRunning()
+	log.Println("✅ Engine started, publishing status...")
 	s.broadcaster.PublishMarketStatus(true)
+	log.Println("✅ StartMarket complete")
 	return status, nil
 }
 
 func (s *MarketService) StopMarket() (*store.MarketStatus, error) {
+	log.Println("🛑 StopMarket called...")
 	status, err := s.store.StopMarket()
 	if err != nil {
+		log.Println("❌ Failed to stop market in store:", err)
 		return nil, err
 	}
+	log.Println("✅ Market stopped in store, stopping engine...")
 	// Hard-stop engine so no simulation cycle can run while market is closed.
 	s.StopEngine()
+	log.Println("✅ Engine stopped, publishing status...")
 	s.broadcaster.PublishMarketStatus(false)
+	log.Println("✅ StopMarket complete")
 	return status, nil
 }
 

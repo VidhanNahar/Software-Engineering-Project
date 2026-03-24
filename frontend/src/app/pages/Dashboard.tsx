@@ -95,7 +95,95 @@ export default function Dashboard() {
 
     fetchDashboardData();
 
-    return () => {};
+    // Establish WebSocket connection for real-time updates
+    let ws: WebSocket | null = null;
+    try {
+      const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+      ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws/stocks`);
+
+      ws.onopen = () => {
+        console.log("💫 Dashboard WebSocket connected");
+      };
+
+      ws.onmessage = (evt) => {
+        try {
+          const data = JSON.parse(evt.data);
+          
+          // If market is closed, don't update prices
+          if (data.market_open === false) {
+            console.debug("📊 Market closed, freezing Dashboard prices");
+            return;
+          }
+          
+          // Handle real-time stock updates
+          if (data.type === "stock_tick" || data.type === "stocks_snapshot") {
+            const incomingStocks = data.stocks || data.ticks || [];
+            
+            // Update watchlist with new prices
+            setWatchlist((prev) =>
+              prev.map((item) => {
+                const updated = incomingStocks.find(
+                  (s: Record<string, unknown>) => s.symbol === item.symbol
+                );
+                if (updated && typeof updated.price === "number") {
+                  const newPrice = updated.price;
+                  const oldPrice = item.price;
+                  const change = newPrice - oldPrice;
+                  const changePercent = oldPrice !== 0 ? (change / oldPrice) * 100 : 0;
+                  
+                  return {
+                    ...item,
+                    price: newPrice,
+                    change,
+                    changePercent,
+                  };
+                }
+                return item;
+              })
+            );
+
+            // Update portfolio with new prices
+            setPortfolio((prev) =>
+              prev.map((item) => {
+                const updated = incomingStocks.find(
+                  (s: Record<string, unknown>) => s.symbol === item.symbol
+                );
+                if (updated && typeof updated.price === "number") {
+                  const newPrice = updated.price;
+                  const newTotalGainLoss =
+                    item.quantity * newPrice -
+                    item.quantity * item.avgPrice;
+                  return {
+                    ...item,
+                    currentPrice: newPrice,
+                    totalGainLoss: newTotalGainLoss,
+                  };
+                }
+                return item;
+              })
+            );
+          }
+        } catch (e) {
+          // Ignore malformed WebSocket payloads
+        }
+      };
+
+      ws.onerror = () => {
+        console.log("⚠️ Dashboard WebSocket error");
+      };
+
+      ws.onclose = () => {
+        console.log("🔌 Dashboard WebSocket disconnected");
+      };
+    } catch (error) {
+      console.error("Failed to connect to WebSocket", error);
+    }
+
+    return () => {
+      if (ws) {
+        ws.close();
+      }
+    };
   }, []);
 
   if (loading) {

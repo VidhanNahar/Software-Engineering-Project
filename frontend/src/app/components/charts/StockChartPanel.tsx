@@ -17,7 +17,7 @@ type Props = {
 
 export function StockChartPanel({ options, selectedSymbol, onSymbolChange, basePrice }: Props) {
   const [timeframe, setTimeframe] = useState<Timeframe>("1D");
-  const { candles, price, connected, lastUpdatedAt } = useStockLiveFeed(selectedSymbol, basePrice, timeframe);
+  const { candles, price, connected, lastUpdatedAt, marketOpen } = useStockLiveFeed(selectedSymbol, basePrice, timeframe);
 
   const closeSeries = useMemo(() => toLineSeries(candles), [candles]);
   const volumeSeries = useMemo(() => toVolumeSeries(candles), [candles]);
@@ -28,12 +28,22 @@ export function StockChartPanel({ options, selectedSymbol, onSymbolChange, baseP
         <StockSelector value={selectedSymbol} options={options} onChange={onSymbolChange} />
         <TimeframeSelector value={timeframe} onChange={setTimeframe} />
         <div className="ml-auto flex items-center gap-3 text-sm">
-          <div className={`h-2.5 w-2.5 rounded-full ${connected ? "bg-emerald-500" : "bg-amber-400"}`} />
-          <span className="text-gray-300">{connected ? "Live via WebSocket" : "Waiting for live feed"}</span>
-          <span className="font-semibold text-white">${price.toFixed(2)}</span>
-          {lastUpdatedAt ? (
-            <span className="text-xs text-gray-400">{new Date(lastUpdatedAt).toLocaleTimeString()}</span>
-          ) : null}
+          {marketOpen ? (
+            <>
+              <div className={`h-2.5 w-2.5 rounded-full ${connected ? "bg-emerald-500" : "bg-amber-400"}`} />
+              <span className="text-gray-300">{connected ? "Live via WebSocket" : "Waiting for live feed"}</span>
+              <span className="font-semibold text-white">${price.toFixed(2)}</span>
+              {lastUpdatedAt ? (
+                <span className="text-xs text-gray-400">{new Date(lastUpdatedAt).toLocaleTimeString()}</span>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <div className="h-2.5 w-2.5 rounded-full bg-gray-600" />
+              <span className="text-gray-400">Market Closed</span>
+              <span className="font-semibold text-gray-400">${price.toFixed(2)}</span>
+            </>
+          )}
         </div>
       </div>
 
