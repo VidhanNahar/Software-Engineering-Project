@@ -19,11 +19,40 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { portfolioApi, transactionApi, walletApi, stockApi } from "../api";
 import { toast } from "sonner";
 
+interface HoldingItem {
+  symbol: string;
+  name?: string;
+  quantity: number;
+  avgPrice: number;
+  currentPrice: number;
+  totalInvested: number;
+  totalValue: number;
+  totalGainLoss: number;
+  returnPercent?: number;
+  gainLossPercent: number;
+}
+
+interface TradeHistoryItem {
+  transaction_id?: string;
+  symbol: string;
+  type?: string;
+  transaction_type?: string;
+  quantity: number;
+  price: number;
+  price_per_stock?: number;
+  timestamp?: string;
+  status?: string;
+}
+
+interface WalletData {
+  balance: number;
+}
+
 export default function Portfolio() {
   const navigate = useNavigate();
-  const [holdings, setHoldings] = useState<any[]>([]);
-  const [trades, setTrades] = useState<any[]>([]);
-  const [wallet, setWallet] = useState<any>({ balance: 0 });
+  const [holdings, setHoldings] = useState<HoldingItem[]>([]);
+  const [trades, setTrades] = useState<TradeHistoryItem[]>([]);
+  const [wallet, setWallet] = useState<WalletData>({ balance: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -38,9 +67,16 @@ export default function Portfolio() {
 
         const stockMap = new Map();
         if (stocksRes.stocks) {
-          stocksRes.stocks.forEach((s: any) => {
-            stockMap.set(s.stock_id, s);
-          });
+          stocksRes.stocks.forEach(
+            (s: {
+              stock_id: string;
+              price?: number;
+              name?: string;
+              symbol?: string;
+            }) => {
+              stockMap.set(s.stock_id, s);
+            },
+          );
         }
 
         let fetchedHoldings = portRes?.holdings || [];
@@ -49,30 +85,38 @@ export default function Portfolio() {
         }
 
         // Enrich holdings with current prices
-        const enrichedHoldings = fetchedHoldings.map((h: any) => {
-          const stockInfo = stockMap.get(h.stock_id);
-          const currentPrice =
-            stockInfo?.price || h.average_price || h.price || 0;
-          const avgPrice = h.average_price || h.price || currentPrice;
-          const quantity = h.quantity || 0;
+        const enrichedHoldings = fetchedHoldings.map(
+          (h: {
+            stock_id: string;
+            symbol?: string;
+            quantity?: number;
+            average_price?: number;
+            price?: number;
+          }) => {
+            const stockInfo = stockMap.get(h.stock_id);
+            const currentPrice =
+              stockInfo?.price || h.average_price || h.price || 0;
+            const avgPrice = h.average_price || h.price || currentPrice;
+            const quantity = h.quantity || 0;
 
-          const totalValue = quantity * currentPrice;
-          const totalInvested = quantity * avgPrice;
-          const totalGainLoss = totalValue - totalInvested;
+            const totalValue = quantity * currentPrice;
+            const totalInvested = quantity * avgPrice;
+            const totalGainLoss = totalValue - totalInvested;
 
-          return {
-            ...h,
-            symbol: h.symbol || stockInfo?.symbol || "UNK",
-            name: stockInfo?.name || "Unknown Stock",
-            quantity,
-            avgPrice,
-            currentPrice,
-            totalValue,
-            totalGainLoss,
-            gainLossPercent:
-              totalInvested > 0 ? (totalGainLoss / totalInvested) * 100 : 0,
-          };
-        });
+            return {
+              ...h,
+              symbol: h.symbol || stockInfo?.symbol || "UNK",
+              name: stockInfo?.name || "Unknown Stock",
+              quantity,
+              avgPrice,
+              currentPrice,
+              totalValue,
+              totalGainLoss,
+              gainLossPercent:
+                totalInvested > 0 ? (totalGainLoss / totalInvested) * 100 : 0,
+            };
+          },
+        );
 
         setHoldings(enrichedHoldings);
         setTrades(transRes?.history || transRes?.transactions || []);
@@ -338,7 +382,7 @@ export default function Portfolio() {
                         formatter={(
                           value: number,
                           name: string,
-                          props: any,
+                          props: { payload: { percent: number } },
                         ) => [
                           `$${value.toLocaleString("en-US", { minimumFractionDigits: 2 })} (${props.payload.percent.toFixed(1)}%)`,
                           name,

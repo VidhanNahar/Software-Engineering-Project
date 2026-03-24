@@ -17,11 +17,32 @@ import {
 } from "lucide-react";
 import { portfolioApi, watchlistApi, stockApi, walletApi } from "../api";
 
+interface WatchlistItem {
+  symbol: string;
+  name: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  isSuggested?: boolean;
+}
+
+interface PortfolioItem {
+  symbol: string;
+  quantity: number;
+  currentPrice: number;
+  avgPrice: number;
+  totalGainLoss: number;
+}
+
+interface WalletData {
+  balance: number;
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [watchlist, setWatchlist] = useState<any[]>([]);
-  const [portfolio, setPortfolio] = useState<any[]>([]);
-  const [wallet, setWallet] = useState<any>({ balance: 0 });
+  const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
+  const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
+  const [wallet, setWallet] = useState<WalletData>({ balance: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -43,20 +64,25 @@ export default function Dashboard() {
 
         // If user has no watchlist yet, show some suggested stocks from the DB
         if (watchItems.length === 0 && stocksRes?.stocks?.length > 0) {
-          watchItems = stocksRes.stocks.slice(0, 5).map((s: any) => {
-            return {
-              ...s,
-              isSuggested: true,
-              change: s.change ?? 0,
-              changePercent: s.changePercent ?? s.change_percent ?? 0,
-            };
-          });
+          watchItems = stocksRes.stocks
+            .slice(0, 5)
+            .map((s: Record<string, unknown>) => {
+              return {
+                ...s,
+                isSuggested: true,
+                change: s.change ?? 0,
+                changePercent: s.changePercent ?? s.change_percent ?? 0,
+              } as WatchlistItem;
+            });
         } else {
-          watchItems = watchItems.map((s: any) => ({
-            ...s,
-            change: s.change ?? 0,
-            changePercent: s.changePercent ?? s.change_percent ?? 0,
-          }));
+          watchItems = watchItems.map(
+            (s: Record<string, unknown>) =>
+              ({
+                ...s,
+                change: s.change ?? 0,
+                changePercent: s.changePercent ?? s.change_percent ?? 0,
+              }) as WatchlistItem,
+          );
         }
 
         setWatchlist(watchItems);

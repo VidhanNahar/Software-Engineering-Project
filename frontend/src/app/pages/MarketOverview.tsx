@@ -40,8 +40,19 @@ function toNumber(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function normalizeStocks(rawStocks: any[] = []): MarketStock[] {
-  return rawStocks.map((s: any) => ({
+function normalizeStocks(
+  rawStocks: {
+    symbol: string;
+    name: string;
+    price: number;
+    quantity: number;
+    volume?: number;
+    change?: number;
+    changePercent?: number;
+    change_percent?: number;
+  }[] = [],
+): MarketStock[] {
+  return rawStocks.map((s) => ({
     stock_id: String(s.stock_id || ""),
     symbol: String(s.symbol || "").toUpperCase(),
     name: String(s.name || ""),
@@ -89,7 +100,17 @@ export default function MarketOverview() {
 
       ws.onmessage = (event: MessageEvent<string>) => {
         try {
-          const payload = JSON.parse(event.data) as { stocks?: any[] };
+          const payload = JSON.parse(event.data) as {
+            stocks?: {
+              symbol: string;
+              name: string;
+              price: number;
+              quantity: number;
+              volume?: number;
+              change?: number;
+              changePercent?: number;
+            }[];
+          };
           if (!payload?.stocks) return;
           setAllStocks(normalizeStocks(payload.stocks));
         } catch {
@@ -132,8 +153,10 @@ export default function MarketOverview() {
   const advancing = allStocks.filter((s) => s.change > 0).length;
   const declining = allStocks.filter((s) => s.change < 0).length;
   const unchanged = allStocks.length - advancing - declining;
-  const advancingPct = allStocks.length > 0 ? (advancing / allStocks.length) * 100 : 0;
-  const decliningPct = allStocks.length > 0 ? (declining / allStocks.length) * 100 : 0;
+  const advancingPct =
+    allStocks.length > 0 ? (advancing / allStocks.length) * 100 : 0;
+  const decliningPct =
+    allStocks.length > 0 ? (declining / allStocks.length) * 100 : 0;
 
   if (loading) {
     return <div className="p-6 text-white">Loading market data...</div>;
@@ -143,9 +166,16 @@ export default function MarketOverview() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-white">Market Overview</h1>
-        <p className="text-gray-300 mt-1">Live market data from backend stream</p>
-        <p className={`mt-1 text-sm ${wsConnected ? "text-green-500" : "text-yellow-500"}`}>
-          Feed: {wsConnected ? "Live websocket connected" : "Using latest API snapshot"}
+        <p className="text-gray-300 mt-1">
+          Live market data from backend stream
+        </p>
+        <p
+          className={`mt-1 text-sm ${wsConnected ? "text-green-500" : "text-yellow-500"}`}
+        >
+          Feed:{" "}
+          {wsConnected
+            ? "Live websocket connected"
+            : "Using latest API snapshot"}
         </p>
       </div>
 
@@ -157,7 +187,11 @@ export default function MarketOverview() {
               <p className="text-sm text-gray-300">{stock.symbol}</p>
               <p className="text-xs text-gray-400 truncate">{stock.name}</p>
               <p className="text-2xl font-bold text-white mt-1">
-                ${stock.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                $
+                {stock.price.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </p>
               <div
                 className={`flex items-center gap-1 mt-1 ${
@@ -171,7 +205,8 @@ export default function MarketOverview() {
                 )}
                 <span className="text-sm font-semibold">
                   {stock.change >= 0 ? "+" : ""}
-                  {stock.change.toFixed(2)} ({stock.change_percent >= 0 ? "+" : ""}
+                  {stock.change.toFixed(2)} (
+                  {stock.change_percent >= 0 ? "+" : ""}
                   {stock.change_percent.toFixed(2)}%)
                 </span>
               </div>
@@ -212,8 +247,7 @@ export default function MarketOverview() {
                     radius={[8, 8, 0, 0]}
                     activeBar={{ stroke: "white", strokeWidth: 2 }}
                     fill="#3b82f6"
-                  >
-                  </Bar>
+                  ></Bar>
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -258,16 +292,28 @@ export default function MarketOverview() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-300">Advancing ({advancingPct.toFixed(0)}%)</span>
-                <span className="text-sm text-gray-300">Declining ({decliningPct.toFixed(0)}%)</span>
+                <span className="text-sm text-gray-300">
+                  Advancing ({advancingPct.toFixed(0)}%)
+                </span>
+                <span className="text-sm text-gray-300">
+                  Declining ({decliningPct.toFixed(0)}%)
+                </span>
               </div>
               <div className="w-full h-4 flex rounded-full overflow-hidden">
-                <div className="bg-green-500 h-full" style={{ width: `${advancingPct}%` }} />
-                <div className="bg-red-500 h-full" style={{ width: `${decliningPct}%` }} />
+                <div
+                  className="bg-green-500 h-full"
+                  style={{ width: `${advancingPct}%` }}
+                />
+                <div
+                  className="bg-red-500 h-full"
+                  style={{ width: `${decliningPct}%` }}
+                />
               </div>
               <div className="flex justify-between mt-4">
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-green-500">{advancing}</p>
+                  <p className="text-2xl font-bold text-green-500">
+                    {advancing}
+                  </p>
                   <p className="text-sm text-gray-300">Issues Advancing</p>
                 </div>
                 <div className="text-center">
@@ -275,7 +321,9 @@ export default function MarketOverview() {
                   <p className="text-sm text-gray-300">Issues Declining</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-gray-500">{unchanged}</p>
+                  <p className="text-2xl font-bold text-gray-500">
+                    {unchanged}
+                  </p>
                   <p className="text-sm text-gray-300">Unchanged</p>
                 </div>
               </div>
