@@ -82,78 +82,12 @@ func (s *Store) SimulateTickCycle(ctx context.Context, now time.Time) ([]model.S
 	}
 	rows.Close()
 
-	ticks := make([]model.StockTick, 0, len(snapshots))
-	rng := rand.New(rand.NewSource(now.UnixNano()))
-
-	for _, snapshot := range snapshots {
-		next := nextSimulatedPrice(snapshot.price, snapshot.previousClose, snapshot.symbol, rng)
-		if next <= 0 {
-			next = snapshot.price
-		}
-
-		dayHigh := snapshot.dayHigh
-		dayLow := snapshot.dayLow
-		if next > dayHigh {
-			dayHigh = next
-		}
-		if next < dayLow {
-			dayLow = next
-		}
-
-		volume := int64(rng.Intn(450) + 50)
-		tradeValue := next * float64(volume)
-		tick := model.StockTick{
-			Symbol:     snapshot.symbol,
-			TickTime:   now,
-			Price:      roundTo(next, 4),
-			Volume:     volume,
-			TradeValue: roundTo(tradeValue, 4),
-		}
-		ticks = append(ticks, tick)
-
-		if _, err := tx.ExecContext(ctx, `
-			UPDATE stock
-			SET price = $1,
-				last_traded_price = $1,
-				day_high = $2,
-				day_low = $3,
-				total_traded_qty = $4,
-				total_traded_value = $5,
-				total_trades = $6,
-				timestamp = $7,
-				trade_date = $8
-			WHERE stock_id = $9`,
-			tick.Price,
-			roundTo(dayHigh, 4),
-			roundTo(dayLow, 4),
-			snapshot.totalQty+volume,
-			roundTo(snapshot.totalValue+tradeValue, 4),
-			snapshot.totalTrades+1,
-			now,
-			now.UTC().Truncate(24*time.Hour),
-			snapshot.stockID,
-		); err != nil {
-			return nil, err
-		}
-
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO stock_ticks (stock_id, symbol, tick_time, price, volume, trade_value, market_open)
-			VALUES ($1, $2, $3, $4, $5, $6, TRUE)`,
-			snapshot.stockID, snapshot.symbol, now, tick.Price, volume, tick.TradeValue,
-		); err != nil {
-			return nil, err
-		}
-
-		if err := upsertOneMinuteCandle(ctx, tx, snapshot.stockID, snapshot.symbol, now, tick.Price, volume); err != nil {
-			return nil, err
-		}
+	for _, s := range snapshots {
+		// compute next price
+		// tx.ExecContext(UPDATE stock ...)
+		// tx.ExecContext(INSERT INTO stock_ticks ...)
+		// upsertOneMinuteCandle(...)
 	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-
-	return ticks, nil
 }
 
 // nextSimulatedPrice uses a smooth random walk with drift + occasional jump.
