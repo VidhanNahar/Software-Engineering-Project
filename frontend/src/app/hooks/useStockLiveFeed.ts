@@ -20,6 +20,8 @@ export function useStockLiveFeed(selectedSymbol: string, basePrice: number, time
   const [marketOpen, setMarketOpen] = useState<boolean>(true);
   const wsRef = useRef<WebSocket | null>(null);
   const isComponentMountedRef = useRef<boolean>(true);
+  const intentionalCloseRef = useRef<boolean>(false);
+  const reconnectTimeoutRef = useRef<number | null>(null);
 
   const normalizedSymbol = useMemo(() => selectedSymbol.toUpperCase(), [selectedSymbol]);
 
@@ -29,8 +31,8 @@ export function useStockLiveFeed(selectedSymbol: string, basePrice: number, time
   }, [basePrice, timeframe, normalizedSymbol]);
 
   useEffect(() => {
-    // Mark component as mounted
     isComponentMountedRef.current = true;
+    intentionalCloseRef.current = false;
 
     const handleLivePrice = (incoming: number) => {
       if (isComponentMountedRef.current) {
@@ -42,8 +44,9 @@ export function useStockLiveFeed(selectedSymbol: string, basePrice: number, time
 
     const connectWebSocket = () => {
       if (!isComponentMountedRef.current) return;
-      
+
       try {
+        intentionalCloseRef.current = false;
         const ws = new WebSocket(websocketUrl());
 
         ws.onopen = () => {
@@ -53,23 +56,39 @@ export function useStockLiveFeed(selectedSymbol: string, basePrice: number, time
           }
         };
 
-        ws.onclose = () => {
-          if (isComponentMountedRef.current) {
-            console.log("🔌 Live feed WebSocket closed");
-            setConnected(false);
+        ws.onclose = (event) => {
+          if (!isComponentMountedRef.current) {
+            return;
           }
+
+          setConnected(false);
+
+          if (intentionalCloseRef.current) {
+            return;
+          }
+
+          console.warn(
+            `🔌 Live feed WebSocket closed (code=${event.code}${event.reason ? `, reason=${event.reason}` : ""})`,
+          );
+
+          if (reconnectTimeoutRef.current !== null) {
+            window.clearTimeout(reconnectTimeoutRef.current);
+          }
+          reconnectTimeoutRef.current = window.setTimeout(() => {
+            reconnectTimeoutRef.current = null;
+            connectWebSocket();
+          }, 1000);
         };
 
         ws.onerror = (error) => {
-          if (isComponentMountedRef.current) {
-            console.error("❌ Live feed WebSocket error:", error);
-            setConnected(false);
-          }
+          if (!isComponentMountedRef.current) return;
+          console.error("❌ Live feed WebSocket error:", error);
+          setConnected(false);
         };
 
         ws.onmessage = (event: MessageEvent<string>) => {
           if (!isComponentMountedRef.current) return;
-          
+
           try {
             const payload = JSON.parse(event.data) as { 
               stocks?: SnapshotStock[]; 
@@ -131,17 +150,26 @@ export function useStockLiveFeed(selectedSymbol: string, basePrice: number, time
     connectWebSocket();
 
     return () => {
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      intentionalCloseRef.current = true;
+      if (reconnectTimeoutRef.current !== null) {
+        window.clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
         wsRef.current.close();
       }
       wsRef.current = null;
+      setConnected(false);
     };
   }, [normalizedSymbol]);
 
-  // Mark component as unmounted on cleanup
   useEffect(() => {
     return () => {
       isComponentMountedRef.current = false;
+      intentionalCloseRef.current = true;
+      if (reconnectTimeoutRef.current !== null) {
+        window.clearTimeout(reconnectTimeoutRef.current);
+      }
     };
   }, []);
 

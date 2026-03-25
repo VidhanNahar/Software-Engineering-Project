@@ -1,4 +1,5 @@
 export const API_URL = "/api";
+export const AUTH_API_URL = "/auth";
 
 export const getAuthHeaders = () => {
   const token = localStorage.getItem("access_token");
@@ -8,8 +9,12 @@ export const getAuthHeaders = () => {
   };
 };
 
-export const apiCall = async (endpoint: string, options: RequestInit = {}) => {
-  const response = await fetch(`${API_URL}${endpoint}`, {
+export const request = async (
+  baseUrl: string,
+  endpoint: string,
+  options: RequestInit = {},
+) => {
+  const response = await fetch(`${baseUrl}${endpoint}`, {
     ...options,
     headers: {
       ...getAuthHeaders(),
@@ -51,29 +56,32 @@ export const apiCall = async (endpoint: string, options: RequestInit = {}) => {
   return response.json();
 };
 
+export const apiCall = async (endpoint: string, options: RequestInit = {}) =>
+  request(API_URL, endpoint, options);
+
 export const authApi = {
   login: (data: any) =>
-    apiCall("/auth/login", {
+    request(AUTH_API_URL, "/login", {
       method: "POST",
       body: JSON.stringify(data),
     }),
   register: (data: any) =>
-    apiCall("/auth/register", {
+    request(AUTH_API_URL, "/register", {
       method: "POST",
       body: JSON.stringify(data),
     }),
   logout: (refreshToken: string) =>
-    apiCall("/auth/logout", {
+    request(AUTH_API_URL, "/logout", {
       method: "POST",
       body: JSON.stringify({ refresh_token: refreshToken }),
     }),
   refresh: (refreshToken: string) =>
-    apiCall("/auth/refresh", {
+    request(AUTH_API_URL, "/refresh", {
       method: "POST",
       body: JSON.stringify({ refresh_token: refreshToken }),
     }),
   verify: (data: { email_id: string; otp: string }) =>
-    apiCall("/auth/verify", {
+    request(AUTH_API_URL, "/verify", {
       method: "POST",
       body: JSON.stringify(data),
     }),
