@@ -82,13 +82,62 @@ func (s *Store) SimulateTickCycle(ctx context.Context, now time.Time) ([]model.S
 	}
 	rows.Close()
 
-	for _, _ = range snapshots {
-		// compute next price
-		// tx.ExecContext(UPDATE stock ...)
-		// tx.ExecContext(INSERT INTO stock_ticks ...)
-		// upsertOneMinuteCandle(...)
+	rng := rand.New(rand.NewSource(now.UnixNano()))
+	ticks := make([]model.StockTick, 0, len(snapshots))
+
+	for _, s := range snapshots {
+		nextPrice := nextSimulatedPrice(s.price, s.previousClose, s.symbol, rng)
+		nextPrice = roundTo(nextPrice, 2)
+
+		if nextPrice == s.price {
+			continue
+		}
+
+		qty := int64(rng.Intn(50) + 1)
+
+		s.dayHigh = math.Max(s.dayHigh, nextPrice)
+		s.dayLow = math.Min(s.dayLow, nextPrice)
+		s.totalQty += qty
+		s.totalValue += nextPrice * float64(qty)
+		s.totalTrades++
+
+		_, err = tx.ExecContext(ctx, `
+			UPDATE stock
+			SET price = $1, day_high = $2, day_low = $3,
+			    total_traded_qty = $4, total_traded_value = $5, total_trades = $6
+			WHERE stock_id = $7`,
+			nextPrice, s.dayHigh, s.dayLow, s.totalQty, s.totalValue, s.totalTrades, s.stockID)
+		if err != nil {
+			return nil, err
+		}
+
+		tradeValue := nextPrice * float64(qty)
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO stock_ticks (stock_id, symbol, tick_time, price, volume, trade_value)
+			VALUES ($1, $2, $3, $4, $5, $6)`,
+			s.stockID, s.symbol, now, nextPrice, qty, tradeValue)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := upsertOneMinuteCandle(ctx, tx, s.stockID, s.symbol, now, nextPrice, qty); err != nil {
+			return nil, err
+		}
+
+		ticks = append(ticks, model.StockTick{
+			Symbol:     s.symbol,
+			TickTime:   now,
+			Price:      nextPrice,
+			Volume:     qty,
+			TradeValue: tradeValue,
+		})
 	}
-	return nil, nil
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	return ticks, nil
 }
 
 // nextSimulatedPrice uses a smooth random walk with drift + occasional jump.
