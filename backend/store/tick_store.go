@@ -82,12 +82,13 @@ func (s *Store) SimulateTickCycle(ctx context.Context, now time.Time) ([]model.S
 	}
 	rows.Close()
 
-	for _, s := range snapshots {
+	for _, _ = range snapshots {
 		// compute next price
 		// tx.ExecContext(UPDATE stock ...)
 		// tx.ExecContext(INSERT INTO stock_ticks ...)
 		// upsertOneMinuteCandle(...)
 	}
+	return nil, nil
 }
 
 // nextSimulatedPrice uses a smooth random walk with drift + occasional jump.
