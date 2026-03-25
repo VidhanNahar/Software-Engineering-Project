@@ -38,6 +38,11 @@ interface WalletData {
   balance: number;
 }
 
+function toNumber(value: unknown): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
@@ -56,7 +61,30 @@ export default function Dashboard() {
           stockApi.getAll().catch(() => ({ stocks: [] })),
         ]);
 
-        const holdings = portRes?.holdings || [];
+        const holdings = (portRes?.holdings || []).map(
+          (holding: Record<string, unknown>) => {
+            const quantity = toNumber(holding.quantity);
+            const currentPrice = toNumber(
+              holding.currentPrice ?? holding.current_price ?? holding.price,
+            );
+            const avgPrice = toNumber(
+              holding.avgPrice ?? holding.average_price ?? holding.avg_price ?? holding.price,
+            );
+            const totalGainLoss =
+              holding.totalGainLoss !== undefined ||
+              holding.total_gain_loss !== undefined
+                ? toNumber(holding.totalGainLoss ?? holding.total_gain_loss)
+                : quantity * currentPrice - quantity * avgPrice;
+
+            return {
+              symbol: String(holding.symbol || "UNK"),
+              quantity,
+              currentPrice,
+              avgPrice,
+              totalGainLoss,
+            } satisfies PortfolioItem;
+          },
+        );
         setPortfolio(holdings);
         setWallet(walletRes || { balance: 0 });
 

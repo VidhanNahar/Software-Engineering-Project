@@ -75,6 +75,8 @@ func main() {
 	r := mux.NewRouter()
 	broadcaster := market.NewWebSocketBroadcaster()
 	marketService := market.NewMarketService(s, broadcaster)
+	log.Println("Starting market engine loop")
+	marketService.EnsureEngineRunning()
 
 	u := controller.NewUserHandler(s)
 	t := controller.NewTradeHandler(s, marketService)

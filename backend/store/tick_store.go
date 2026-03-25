@@ -11,6 +11,18 @@ import (
 	"github.com/google/uuid"
 )
 
+type stockSnapshot struct {
+	stockID       uuid.UUID
+	symbol        string
+	price         float64
+	previousClose float64
+	dayHigh       float64
+	dayLow        float64
+	totalQty      int64
+	totalValue    float64
+	totalTrades   int64
+}
+
 // SimulateTickCycle performs one centralized price update cycle and stores ticks.
 // This is intentionally called only by the market engine.
 func (s *Store) SimulateTickCycle(ctx context.Context, now time.Time) ([]model.StockTick, error) {
@@ -28,43 +40,59 @@ func (s *Store) SimulateTickCycle(ctx context.Context, now time.Time) ([]model.S
 	}
 	defer tx.Rollback()
 
+	snapshots := make([]stockSnapshot, 0, 1024)
+
 	rows, err := tx.QueryContext(ctx, `
-		SELECT stock_id, symbol,
-			COALESCE(price, previous_close, open_price, close_price, 1) AS price,
-			COALESCE(previous_close, price, open_price, close_price, 1) AS previous_close,
-			COALESCE(day_high, price, previous_close, open_price, close_price, 1) AS day_high,
-			COALESCE(day_low, price, previous_close, open_price, close_price, 1) AS day_low,
-			COALESCE(total_traded_qty, 0) AS total_traded_qty,
-			COALESCE(total_traded_value, 0) AS total_traded_value,
-			COALESCE(total_trades, 0) AS total_trades
-		FROM stock
-		WHERE price IS NOT NULL
-		ORDER BY symbol`)
+	SELECT stock_id, symbol,
+		COALESCE(price, previous_close, open_price, close_price, 1) AS price,
+		COALESCE(previous_close, price, open_price, close_price, 1) AS previous_close,
+		COALESCE(day_high, price, previous_close, open_price, close_price, 1) AS day_high,
+		COALESCE(day_low, price, previous_close, open_price, close_price, 1) AS day_low,
+		COALESCE(total_traded_qty, 0) AS total_traded_qty,
+		COALESCE(total_traded_value, 0) AS total_traded_value,
+		COALESCE(total_trades, 0) AS total_trades
+	FROM stock
+	WHERE price IS NOT NULL
+	ORDER BY symbol`)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	ticks := make([]model.StockTick, 0, 1024)
-	rng := rand.New(rand.NewSource(now.UnixNano()))
 
 	for rows.Next() {
-		var stockID uuid.UUID
-		var symbol string
-		var price, previousClose, dayHigh, dayLow float64
-		var totalQty int64
-		var totalValue float64
-		var totalTrades int64
-
-		if err := rows.Scan(&stockID, &symbol, &price, &previousClose, &dayHigh, &dayLow, &totalQty, &totalValue, &totalTrades); err != nil {
+		var s stockSnapshot
+		if err := rows.Scan(
+			&s.stockID,
+			&s.symbol,
+			&s.price,
+			&s.previousClose,
+			&s.dayHigh,
+			&s.dayLow,
+			&s.totalQty,
+			&s.totalValue,
+			&s.totalTrades,
+		); err != nil {
+			rows.Close()
 			return nil, err
 		}
+		snapshots = append(snapshots, s)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	rows.Close()
 
-		next := nextSimulatedPrice(price, previousClose, symbol, rng)
+	ticks := make([]model.StockTick, 0, len(snapshots))
+	rng := rand.New(rand.NewSource(now.UnixNano()))
+
+	for _, snapshot := range snapshots {
+		next := nextSimulatedPrice(snapshot.price, snapshot.previousClose, snapshot.symbol, rng)
 		if next <= 0 {
-			next = price
+			next = snapshot.price
 		}
 
+		dayHigh := snapshot.dayHigh
+		dayLow := snapshot.dayLow
 		if next > dayHigh {
 			dayHigh = next
 		}
@@ -75,7 +103,7 @@ func (s *Store) SimulateTickCycle(ctx context.Context, now time.Time) ([]model.S
 		volume := int64(rng.Intn(450) + 50)
 		tradeValue := next * float64(volume)
 		tick := model.StockTick{
-			Symbol:     symbol,
+			Symbol:     snapshot.symbol,
 			TickTime:   now,
 			Price:      roundTo(next, 4),
 			Volume:     volume,
@@ -98,12 +126,12 @@ func (s *Store) SimulateTickCycle(ctx context.Context, now time.Time) ([]model.S
 			tick.Price,
 			roundTo(dayHigh, 4),
 			roundTo(dayLow, 4),
-			totalQty+volume,
-			roundTo(totalValue+tradeValue, 4),
-			totalTrades+1,
+			snapshot.totalQty+volume,
+			roundTo(snapshot.totalValue+tradeValue, 4),
+			snapshot.totalTrades+1,
 			now,
 			now.UTC().Truncate(24*time.Hour),
-			stockID,
+			snapshot.stockID,
 		); err != nil {
 			return nil, err
 		}
@@ -111,18 +139,14 @@ func (s *Store) SimulateTickCycle(ctx context.Context, now time.Time) ([]model.S
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO stock_ticks (stock_id, symbol, tick_time, price, volume, trade_value, market_open)
 			VALUES ($1, $2, $3, $4, $5, $6, TRUE)`,
-			stockID, symbol, now, tick.Price, volume, tick.TradeValue,
+			snapshot.stockID, snapshot.symbol, now, tick.Price, volume, tick.TradeValue,
 		); err != nil {
 			return nil, err
 		}
 
-		if err := upsertOneMinuteCandle(ctx, tx, stockID, symbol, now, tick.Price, volume); err != nil {
+		if err := upsertOneMinuteCandle(ctx, tx, snapshot.stockID, snapshot.symbol, now, tick.Price, volume); err != nil {
 			return nil, err
 		}
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, err
 	}
 
 	if err := tx.Commit(); err != nil {

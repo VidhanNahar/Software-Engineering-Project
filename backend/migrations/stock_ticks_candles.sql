@@ -81,6 +81,7 @@ BEGIN
 EXCEPTION
     WHEN undefined_function THEN NULL;
     WHEN insufficient_privilege THEN NULL;
+    WHEN OTHERS THEN NULL;
 END$$;
 
 DO $$
@@ -89,4 +90,5 @@ BEGIN
 EXCEPTION
     WHEN undefined_function THEN NULL;
     WHEN insufficient_privilege THEN NULL;
+    WHEN OTHERS THEN NULL;
 END$$;
