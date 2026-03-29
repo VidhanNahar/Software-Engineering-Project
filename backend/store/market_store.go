@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"time"
 )
 
@@ -30,6 +31,16 @@ func (s *Store) GetCacheValue(ctx context.Context, key string) (string, error) {
 
 // GetMarketStatus returns current market status
 func (s *Store) GetMarketStatus() (*MarketStatus, error) {
+	ctx := context.Background()
+	cacheKey := "market:status"
+
+	if cached, err := s.GetCacheValue(ctx, cacheKey); err == nil && cached != "" {
+		var status MarketStatus
+		if jsonErr := json.Unmarshal([]byte(cached), &status); jsonErr == nil {
+			return &status, nil
+		}
+	}
+
 	_, err := s.db.Exec(`
 		INSERT INTO market_status (market_id, is_open)
 		SELECT gen_random_uuid(), false
@@ -69,11 +80,17 @@ func (s *Store) GetMarketStatus() (*MarketStatus, error) {
 		status.ClosedAt = &closedAt.Time
 	}
 
+	// Cache for 2 seconds (market status changes infrequently)
+	if data, jsonErr := json.Marshal(status); jsonErr == nil {
+		s.SetCacheValue(ctx, cacheKey, string(data), 2)
+	}
+
 	return &status, nil
 }
 
 // StartMarket opens the market for trading
 func (s *Store) StartMarket() (*MarketStatus, error) {
+	ctx := context.Background()
 	// First ensure we have a record
 	_, err := s.db.Exec(`
 		INSERT INTO market_status (market_id, is_open)
@@ -94,12 +111,16 @@ func (s *Store) StartMarket() (*MarketStatus, error) {
 		return nil, err
 	}
 
+	// Invalidate market status cache
+	s.rdb.Del(ctx, "market:status")
+
 	// Fetch and return updated status
 	return s.GetMarketStatus()
 }
 
 // StopMarket closes the market for trading
 func (s *Store) StopMarket() (*MarketStatus, error) {
+	ctx := context.Background()
 	// First ensure we have a record
 	_, err := s.db.Exec(`
 		INSERT INTO market_status (market_id, is_open)
@@ -119,6 +140,9 @@ func (s *Store) StopMarket() (*MarketStatus, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Invalidate market status cache
+	s.rdb.Del(ctx, "market:status")
 
 	// Fetch and return updated status
 	return s.GetMarketStatus()
