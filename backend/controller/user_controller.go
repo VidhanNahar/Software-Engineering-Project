@@ -190,8 +190,10 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
 		"token":           tokenString,
+		"access_token":    tokenString,
 		"user_id":         user.UserID,
 		"role":            user.Role,
+		"name":            user.UserName,
 		"is_kyc_verified": user.IsKYCVerified,
 	})
 }

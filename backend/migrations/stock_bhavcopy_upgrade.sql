@@ -14,6 +14,7 @@ ALTER TABLE stock ADD COLUMN IF NOT EXISTS total_traded_qty BIGINT;
 ALTER TABLE stock ADD COLUMN IF NOT EXISTS total_traded_value NUMERIC(20,2);
 ALTER TABLE stock ADD COLUMN IF NOT EXISTS total_trades BIGINT;
 ALTER TABLE stock ADD COLUMN IF NOT EXISTS trade_date DATE;
+ALTER TABLE stock ADD COLUMN IF NOT EXISTS quantity BIGINT;
 
 -- Fill symbol for legacy rows where only name existed.
 UPDATE stock

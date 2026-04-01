@@ -1,4 +1,5 @@
 import { createBrowserRouter, Navigate } from "react-router";
+import { ProtectedRoute, AdminRoute } from "./components/RouteGuards";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import StockDetails from "./pages/StockDetails";
@@ -7,17 +8,6 @@ import Trade from "./pages/Trade";
 import MarketOverview from "./pages/MarketOverview";
 import Admin from "./pages/Admin";
 import Layout from "./components/Layout";
-
-// Simple auth check
-const isAuthenticated = () => {
-  const isLoggedIn = localStorage.getItem("isLoggedIn") === "true";
-  const hasToken = !!localStorage.getItem("access_token");
-  return isLoggedIn && hasToken;
-};
-
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  return isAuthenticated() ? children : <Navigate to="/login" replace />;
-};
 
 export const router = createBrowserRouter([
   {
@@ -37,7 +27,14 @@ export const router = createBrowserRouter([
       { path: "portfolio", Component: Portfolio },
       { path: "trade", Component: Trade },
       { path: "market", Component: MarketOverview },
-      { path: "admin", Component: Admin },
+      {
+        path: "admin",
+        element: (
+          <AdminRoute>
+            <Admin />
+          </AdminRoute>
+        ),
+      },
     ],
   },
   {

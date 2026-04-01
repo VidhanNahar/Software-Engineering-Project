@@ -45,7 +45,8 @@ CREATE TABLE IF NOT EXISTS stock (
     stock_id            UUID            PRIMARY KEY DEFAULT gen_random_uuid(),
     name                VARCHAR(128)    NOT NULL,
     price               NUMERIC(15,2)   CHECK (price > 0),
-    timestamp           TIMESTAMPTZ     NOT NULL
+    timestamp           TIMESTAMPTZ     NOT NULL,
+    quantity            BIGINT
 );
 
 -- =============================================================

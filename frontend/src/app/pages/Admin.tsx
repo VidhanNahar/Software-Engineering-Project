@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router";
+import { isAdmin } from "../utils/auth";
 import {
   Card,
   CardContent,
@@ -9,13 +11,38 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { toast } from "sonner";
-import { adminApi, stockApi } from "../api";
-import { Trash2, Edit2, Loader2, Plus, PowerCircle, Play, Square } from "lucide-react";
+import { adminApi } from "../api";
+import {
+  Trash2,
+  Edit2,
+  Loader2,
+  PowerCircle,
+  Play,
+  Square,
+  ShieldX,
+} from "lucide-react";
+
+interface Stock {
+  stock_id: string;
+  symbol: string;
+  name: string;
+  price: number;
+  quantity: number;
+}
+
+interface MarketStatus {
+  is_open: boolean;
+  opened_at?: string;
+  closed_at?: string;
+}
 
 export default function Admin() {
-  const [stocks, setStocks] = useState<any[]>([]);
+  const navigate = useNavigate();
+
+  // ── All hooks must be declared unconditionally before any early return ──
+  const [stocks, setStocks] = useState<Stock[]>([]);
   const [loading, setLoading] = useState(true);
-  const [marketStatus, setMarketStatus] = useState<any>(null);
+  const [marketStatus, setMarketStatus] = useState<MarketStatus | null>(null);
   const [marketLoading, setMarketLoading] = useState(false);
   const [formData, setFormData] = useState({
     symbol: "",
@@ -30,7 +57,7 @@ export default function Admin() {
       setLoading(true);
       const res = await adminApi.getTopStocks();
       setStocks(res?.stocks || []);
-    } catch (err) {
+    } catch {
       toast.error("Failed to load stocks");
     } finally {
       setLoading(false);
@@ -41,18 +68,48 @@ export default function Admin() {
     try {
       const status = await adminApi.getMarketStatus();
       setMarketStatus(status);
-    } catch (err: any) {
-      console.log("Failed to fetch market status", err?.message || err);
+    } catch (err: unknown) {
+      console.log(
+        "Failed to fetch market status",
+        err instanceof Error ? err.message : err,
+      );
     }
   };
 
   useEffect(() => {
+    // Redirect non-admins away
+    if (!isAdmin()) {
+      navigate("/", { replace: true });
+      return;
+    }
     fetchStocks();
     fetchMarketStatus();
-    // Poll market status every 2 seconds
     const interval = setInterval(fetchMarketStatus, 2000);
     return () => clearInterval(interval);
-  }, []);
+  }, [navigate]);
+
+  // ── Early return for non-admins (rendered while redirect is in flight) ──
+  if (!isAdmin()) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
+        <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+          <ShieldX className="w-8 h-8 text-red-600 dark:text-red-400" />
+        </div>
+        <h2 className="text-2xl font-bold text-foreground">Access Denied</h2>
+        <p className="text-muted-foreground max-w-sm">
+          You do not have administrator privileges to view this page.
+        </p>
+        <Button
+          onClick={() => navigate("/")}
+          className="bg-blue-600 hover:bg-blue-700 text-white"
+        >
+          Go to Dashboard
+        </Button>
+      </div>
+    );
+  }
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -93,12 +150,12 @@ export default function Admin() {
       setFormData({ symbol: "", name: "", price: "", quantity: "" });
       setEditingId(null);
       fetchStocks();
-    } catch (err: any) {
-      toast.error(err.message || "Action failed");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Action failed");
     }
   };
 
-  const handleEdit = (stock: any) => {
+  const handleEdit = (stock: Stock) => {
     setEditingId(stock.stock_id);
     setFormData({
       symbol: stock.symbol,
@@ -114,8 +171,10 @@ export default function Admin() {
       await adminApi.deleteStock(stockId);
       toast.success("Stock deleted");
       fetchStocks();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to delete stock");
+    } catch (err: unknown) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to delete stock",
+      );
     }
   };
 
@@ -123,13 +182,13 @@ export default function Admin() {
     try {
       setMarketLoading(true);
       const res = await adminApi.startMarket();
-      if (res?.status) {
-        setMarketStatus(res.status);
-      }
+      if (res?.status) setMarketStatus(res.status);
       toast.success("Market opened for trading!");
       await fetchMarketStatus();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to start market");
+    } catch (err: unknown) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to start market",
+      );
     } finally {
       setMarketLoading(false);
     }
@@ -139,17 +198,17 @@ export default function Admin() {
     try {
       setMarketLoading(true);
       const res = await adminApi.stopMarket();
-      if (res?.status) {
-        setMarketStatus(res.status);
-      }
+      if (res?.status) setMarketStatus(res.status);
       toast.success("Market closed. No trading allowed.");
       await fetchMarketStatus();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to stop market");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to stop market");
     } finally {
       setMarketLoading(false);
     }
   };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
@@ -160,8 +219,8 @@ export default function Admin() {
         </p>
       </div>
 
-      {/* Market Control Card */}
-      <Card className="border-2 border-blue-500/50 bg-gradient-to-r from-blue-50 to-transparent dark:from-blue-950/30 dark:to-transparent">
+      {/* ── Market Control ── */}
+      <Card className="border-2 border-blue-500/50 bg-linear-to-r from-blue-50 to-transparent dark:from-blue-950/30 dark:to-transparent">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <PowerCircle className="w-5 h-5 text-blue-600" />
@@ -174,11 +233,11 @@ export default function Admin() {
               <div className="text-lg font-semibold text-foreground">
                 Market Status:{" "}
                 <span
-                  className={`${
+                  className={
                     marketStatus?.is_open
                       ? "text-green-600 dark:text-green-400"
                       : "text-red-600 dark:text-red-400"
-                  }`}
+                  }
                 >
                   {marketStatus?.is_open ? "OPEN" : "CLOSED"}
                 </span>
@@ -186,13 +245,13 @@ export default function Admin() {
               <p className="text-sm text-muted-foreground mt-1">
                 {marketStatus?.is_open
                   ? `Trading started at ${
-                      marketStatus?.opened_at
+                      marketStatus.opened_at
                         ? new Date(marketStatus.opened_at).toLocaleString()
                         : "N/A"
                     }`
                   : marketStatus?.closed_at
                     ? `Trading stopped at ${new Date(
-                        marketStatus.closed_at
+                        marketStatus.closed_at,
                       ).toLocaleString()}`
                     : "Market is currently closed"}
               </p>
@@ -204,7 +263,9 @@ export default function Admin() {
                 disabled={marketStatus?.is_open || marketLoading}
                 className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700 text-white"
               >
-                {marketLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                {marketLoading && (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                )}
                 <Play className="w-4 h-4 mr-2" />
                 Start Market
               </Button>
@@ -214,7 +275,9 @@ export default function Admin() {
                 disabled={!marketStatus?.is_open || marketLoading}
                 className="flex-1 sm:flex-none bg-red-600 hover:bg-red-700 text-white"
               >
-                {marketLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                {marketLoading && (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                )}
                 <Square className="w-4 h-4 mr-2" />
                 Stop Market
               </Button>
@@ -223,7 +286,7 @@ export default function Admin() {
         </CardContent>
       </Card>
 
-      {/* Stock Management Section */}
+      {/* ── Stock Management ── */}
       <div>
         <h2 className="text-xl font-semibold text-foreground mb-4">
           Stock Management
@@ -231,7 +294,7 @@ export default function Admin() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Form Card */}
+        {/* Form */}
         <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle>
@@ -314,7 +377,7 @@ export default function Admin() {
           </CardContent>
         </Card>
 
-        {/* Stock List Card */}
+        {/* Stock List */}
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Existing Stocks</CardTitle>

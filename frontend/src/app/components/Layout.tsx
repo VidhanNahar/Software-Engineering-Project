@@ -17,11 +17,20 @@ import { Input } from "./ui/input";
 import { toast } from "sonner";
 import { useTheme } from "../context/ThemeContext";
 import { authApi } from "../api";
+import { isAdmin } from "../utils/auth";
 
 export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
+  const userRole = localStorage.getItem("user_role") || "user";
+  const userName = localStorage.getItem("user_name") || "Trader";
+  const userInitials = userName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 
   const handleLogout = async () => {
     try {
@@ -30,24 +39,25 @@ export default function Layout() {
         await authApi.logout(refreshToken);
       }
     } catch (error) {
-      // Even if API fails (e.g. network issue), we still want to clear local state
       console.error("Logout API failed", error);
     } finally {
       localStorage.removeItem("isLoggedIn");
       localStorage.removeItem("access_token");
       localStorage.removeItem("refresh_token");
       localStorage.removeItem("user_id");
+      localStorage.removeItem("user_role");
+      localStorage.removeItem("user_name");
       toast.success("Logged out successfully");
       navigate("/login");
     }
   };
 
-  const navItems = [
+  const allNavItems = [
     { path: "/", icon: LayoutDashboard, label: "Dashboard" },
     { path: "/market", icon: TrendingUp, label: "Market" },
     { path: "/portfolio", icon: Wallet, label: "Portfolio" },
     { path: "/trade", icon: BarChart3, label: "Trade" },
-    { path: "/admin", icon: Shield, label: "Admin" },
+    ...(isAdmin() ? [{ path: "/admin", icon: Shield, label: "Admin" }] : []),
   ];
 
   return (
@@ -61,7 +71,7 @@ export default function Layout() {
 
         <nav className="flex-1 p-4">
           <div className="space-y-2">
-            {navItems.map((item) => {
+            {allNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.path;
               return (
@@ -140,14 +150,14 @@ export default function Layout() {
               <div className="flex items-center gap-3">
                 <div className="text-right">
                   <p className="text-sm font-medium text-foreground">
-                    John Trader
+                    {userName}
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    Premium Account
+                  <p className="text-xs text-muted-foreground capitalize">
+                    {userRole === "admin" ? "Administrator" : "Trader Account"}
                   </p>
                 </div>
                 <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">
-                  JT
+                  {userInitials}
                 </div>
               </div>
             </div>

@@ -1,10 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { ArrowDownRight, ArrowLeft, ArrowUpRight, Loader2, Star } from "lucide-react";
+import {
+  ArrowDownRight,
+  ArrowLeft,
+  ArrowUpRight,
+  Loader2,
+  Star,
+} from "lucide-react";
 import { toast } from "sonner";
 import { stockApi, watchlistApi } from "../api";
 import { Button } from "../components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
 import { StockChartPanel } from "../components/charts/StockChartPanel";
 import type { StockOption } from "../types/ohlcv";
 
@@ -66,7 +77,9 @@ export default function StockDetails() {
       );
 
       const watchlist = watchRes?.watchlist || [];
-      const existing = watchlist.find((w: any) => w.stock_id === target.stock_id);
+      const existing = watchlist.find(
+        (w: any) => w.stock_id === target.stock_id,
+      );
       setInWatchlist(Boolean(existing));
       setWatchlistItemId(existing?.watchlist_id ?? null);
     } catch {
@@ -85,16 +98,18 @@ export default function StockDetails() {
     const connectMarketListener = () => {
       try {
         const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-        const ws = new WebSocket(`${protocol}://${window.location.host}/ws/stocks`);
+        const ws = new WebSocket(
+          `${protocol}://${window.location.host}/ws/stocks`,
+        );
 
         ws.onmessage = (event) => {
           try {
-            const payload = JSON.parse(event.data) as { 
-              stocks?: any[]; 
+            const payload = JSON.parse(event.data) as {
+              stocks?: any[];
               ticks?: any[];
               market_open?: boolean;
             };
-            
+
             if (typeof payload.market_open === "boolean") {
               setMarketOpen(payload.market_open);
               // If market closed, stop updating
@@ -102,21 +117,26 @@ export default function StockDetails() {
                 return;
               }
             }
-            
+
             // Update stock price in header if this is our symbol
             if (stock && (payload.stocks || payload.ticks)) {
               const stocksArray = payload.stocks || payload.ticks;
               const updatedStock = stocksArray.find(
-                (s) => (s.symbol || s.Symbol || "").toUpperCase() === stock.symbol.toUpperCase()
+                (s) =>
+                  (s.symbol || s.Symbol || "").toUpperCase() ===
+                  stock.symbol.toUpperCase(),
               );
-              
+
               if (updatedStock && typeof updatedStock.price === "number") {
                 setStock((prev) => {
                   if (!prev) return prev;
                   const newPrice = updatedStock.price;
                   const change = newPrice - prev.previous_close;
-                  const changePercent = prev.previous_close !== 0 ? (change / prev.previous_close) * 100 : 0;
-                  
+                  const changePercent =
+                    prev.previous_close !== 0
+                      ? (change / prev.previous_close) * 100
+                      : 0;
+
                   return {
                     ...prev,
                     price: newPrice,
@@ -169,8 +189,8 @@ export default function StockDetails() {
         if (res?.watchlist_id) setWatchlistItemId(res.watchlist_id);
         toast.success(`Added ${stock.symbol} to watchlist`);
       }
-    } catch {
-      toast.error("Failed to update watchlist");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update watchlist");
     } finally {
       setWatchlistLoading(false);
     }
@@ -223,7 +243,9 @@ export default function StockDetails() {
               {watchlistLoading ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
-                <Star className={`h-5 w-5 ${inWatchlist ? "fill-yellow-500" : ""}`} />
+                <Star
+                  className={`h-5 w-5 ${inWatchlist ? "fill-yellow-500" : ""}`}
+                />
               )}
             </Button>
           </div>
@@ -231,16 +253,23 @@ export default function StockDetails() {
         </div>
 
         <div className="text-right">
-          <p className="text-4xl font-bold text-white">${stock.price.toFixed(2)}</p>
+          <p className="text-4xl font-bold text-white">
+            ${stock.price.toFixed(2)}
+          </p>
           <div
             className={`mt-1 flex items-center justify-end gap-2 text-lg font-semibold ${
               stock.change >= 0 ? "text-green-500" : "text-red-500"
             }`}
           >
-            {stock.change >= 0 ? <ArrowUpRight className="h-5 w-5" /> : <ArrowDownRight className="h-5 w-5" />}
+            {stock.change >= 0 ? (
+              <ArrowUpRight className="h-5 w-5" />
+            ) : (
+              <ArrowDownRight className="h-5 w-5" />
+            )}
             <span>
               {stock.change >= 0 ? "+" : ""}
-              {stock.change.toFixed(2)} ({Math.abs(stock.change_percent).toFixed(2)}%)
+              {stock.change.toFixed(2)} (
+              {Math.abs(stock.change_percent).toFixed(2)}%)
             </span>
           </div>
         </div>
@@ -254,7 +283,17 @@ export default function StockDetails() {
             </CardHeader>
             <CardContent>
               <StockChartPanel
-                options={stockOptions.length > 0 ? stockOptions : [{ stockId: stock.stock_id, symbol: stock.symbol, name: stock.name }]}
+                options={
+                  stockOptions.length > 0
+                    ? stockOptions
+                    : [
+                        {
+                          stockId: stock.stock_id,
+                          symbol: stock.symbol,
+                          name: stock.name,
+                        },
+                      ]
+                }
                 selectedSymbol={selectedSymbol}
                 onSymbolChange={onSelectSymbol}
                 basePrice={stock.price}
@@ -269,13 +308,21 @@ export default function StockDetails() {
               <div className="space-y-4">
                 <Button
                   className="h-14 w-full bg-green-600 text-lg font-bold text-white shadow-lg hover:bg-green-700"
-                  onClick={() => navigate("/trade", { state: { symbol: stock.symbol, type: "buy" } })}
+                  onClick={() =>
+                    navigate("/trade", {
+                      state: { symbol: stock.symbol, type: "buy" },
+                    })
+                  }
                 >
                   Buy {stock.symbol}
                 </Button>
                 <Button
                   className="h-14 w-full bg-red-600 text-lg font-bold text-white shadow-lg hover:bg-red-700"
-                  onClick={() => navigate("/trade", { state: { symbol: stock.symbol, type: "sell" } })}
+                  onClick={() =>
+                    navigate("/trade", {
+                      state: { symbol: stock.symbol, type: "sell" },
+                    })
+                  }
                 >
                   Sell {stock.symbol}
                 </Button>
@@ -302,15 +349,21 @@ export default function StockDetails() {
               </div>
               <div>
                 <p className="text-gray-400">Prev Close</p>
-                <p className="font-semibold">${stock.previous_close.toFixed(2)}</p>
+                <p className="font-semibold">
+                  ${stock.previous_close.toFixed(2)}
+                </p>
               </div>
               <div>
                 <p className="text-gray-400">Volume</p>
-                <p className="font-semibold">{stock.quantity.toLocaleString()}</p>
+                <p className="font-semibold">
+                  {stock.quantity.toLocaleString()}
+                </p>
               </div>
               <div>
                 <p className="text-gray-400">Mkt Cap</p>
-                <p className="font-semibold">${(marketCap / 1_000_000_000).toFixed(2)}B</p>
+                <p className="font-semibold">
+                  ${(marketCap / 1_000_000_000).toFixed(2)}B
+                </p>
               </div>
             </CardContent>
           </Card>

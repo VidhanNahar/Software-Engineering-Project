@@ -7,6 +7,7 @@ import (
 	"backend-go/store"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -650,6 +651,7 @@ func (h *TradeHandler) AddWatchlist(w http.ResponseWriter, r *http.Request) {
 
 	watchlistID, err := h.store.AddWatchlistItem(user.UserID, req.StockID, req.WatchlistName)
 	if err != nil {
+		log.Printf("Error adding to watchlist: %v", err)
 		http.Error(w, "Failed to add watchlist item", http.StatusInternalServerError)
 		return
 	}

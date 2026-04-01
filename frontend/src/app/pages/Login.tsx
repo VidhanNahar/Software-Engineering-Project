@@ -98,6 +98,12 @@ export default function Login() {
         if (response.user_id) {
           localStorage.setItem("user_id", response.user_id);
         }
+        if (response.role) {
+          localStorage.setItem("user_role", response.role);
+        }
+        if (response.name) {
+          localStorage.setItem("user_name", response.name);
+        }
 
         toast.success("Login successful!");
         navigate("/");
@@ -138,22 +144,22 @@ export default function Login() {
       </Button>
 
       <div className="w-full max-w-md">
-        <Card className="w-full text-white bg-gray-900 border-gray-800">
+        <Card className="w-full bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 shadow-xl">
           <CardHeader className="text-center space-y-4">
             <div className="flex items-center justify-center gap-3">
-              <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
-                <TrendingUp className="w-7 h-7 text-white" />
+              <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-xl flex items-center justify-center">
+                <TrendingUp className="w-7 h-7 text-blue-600 dark:text-blue-400" />
               </div>
             </div>
             <div>
-              <CardTitle className="text-2xl text-white">
+              <CardTitle className="text-2xl text-gray-900 dark:text-white">
                 {isVerifying
                   ? "Verify Email"
                   : isRegistering
                     ? "Create an Account"
                     : "Welcome to FinXGrow"}
               </CardTitle>
-              <CardDescription className="text-gray-400">
+              <CardDescription className="text-gray-500 dark:text-gray-400">
                 {isVerifying
                   ? "Enter the OTP sent to your email"
                   : isRegistering
@@ -166,7 +172,10 @@ export default function Login() {
             <form onSubmit={handleSubmit} className="space-y-4">
               {isVerifying && (
                 <div className="space-y-2">
-                  <Label className="text-white" htmlFor="otp">
+                  <Label
+                    className="text-gray-700 dark:text-gray-200"
+                    htmlFor="otp"
+                  >
                     One-Time Password (OTP)
                   </Label>
                   <Input
@@ -175,10 +184,10 @@ export default function Login() {
                     placeholder="Enter 6-digit OTP"
                     value={otp}
                     onChange={(e) => setOtp(e.target.value)}
-                    className="bg-gray-800 border-gray-700 text-white text-center tracking-[0.5em] text-lg font-mono"
+                    className="bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white text-center tracking-[0.5em] text-lg font-mono"
                     maxLength={6}
                   />
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     An OTP has been sent to {email}
                   </p>
                 </div>
@@ -188,7 +197,10 @@ export default function Login() {
                 <>
                   {isRegistering && (
                     <div className="space-y-2">
-                      <Label className="text-white" htmlFor="name">
+                      <Label
+                        className="text-gray-700 dark:text-gray-200"
+                        htmlFor="name"
+                      >
                         Full Name
                       </Label>
                       <Input
@@ -197,13 +209,16 @@ export default function Login() {
                         placeholder="John Doe"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        className="bg-gray-800 border-gray-700 text-white"
+                        className="bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white"
                       />
                     </div>
                   )}
 
                   <div className="space-y-2">
-                    <Label className="text-white" htmlFor="email">
+                    <Label
+                      className="text-gray-700 dark:text-gray-200"
+                      htmlFor="email"
+                    >
                       Email Address
                     </Label>
                     <Input
@@ -212,14 +227,17 @@ export default function Login() {
                       placeholder="trader@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="bg-gray-800 border-gray-700 text-white"
+                      className="bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white"
                       disabled={isVerifying}
                     />
                   </div>
 
                   {isRegistering && (
                     <div className="space-y-2">
-                      <Label className="text-white" htmlFor="dob">
+                      <Label
+                        className="text-gray-700 dark:text-gray-200"
+                        htmlFor="dob"
+                      >
                         Date of Birth
                       </Label>
                       <Input
@@ -227,13 +245,16 @@ export default function Login() {
                         type="date"
                         value={dateOfBirth}
                         onChange={(e) => setDateOfBirth(e.target.value)}
-                        className="bg-gray-800 border-gray-700 text-white [&::-webkit-calendar-picker-indicator]:filter [&::-webkit-calendar-picker-indicator]:invert"
+                        className="bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white dark:[&::-webkit-calendar-picker-indicator]:filter dark:[&::-webkit-calendar-picker-indicator]:invert"
                       />
                     </div>
                   )}
 
                   <div className="space-y-2">
-                    <Label className="text-white" htmlFor="password">
+                    <Label
+                      className="text-gray-700 dark:text-gray-200"
+                      htmlFor="password"
+                    >
                       Password
                     </Label>
                     <div className="relative">
@@ -247,12 +268,12 @@ export default function Login() {
                         }
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="bg-gray-800 border-gray-700 text-white pr-10"
+                        className="bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white pr-10"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors"
                       >
                         {showPassword ? (
                           <EyeOff className="w-5 h-5" />
@@ -270,13 +291,15 @@ export default function Login() {
                   <label className="flex items-center gap-2 text-sm cursor-pointer">
                     <input
                       type="checkbox"
-                      className="rounded border-gray-700 bg-gray-800"
+                      className="rounded border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800"
                     />
-                    <span className="text-gray-300">Remember me</span>
+                    <span className="text-gray-600 dark:text-gray-300">
+                      Remember me
+                    </span>
                   </label>
                   <button
                     type="button"
-                    className="text-sm text-blue-500 hover:text-blue-400 transition-colors"
+                    className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
                     onClick={() => toast.info("Password reset coming soon")}
                   >
                     Forgot password?
@@ -303,7 +326,7 @@ export default function Login() {
                 )}
               </Button>
 
-              <p className="text-center text-sm text-gray-400 mt-4">
+              <p className="text-center text-sm text-gray-600 dark:text-gray-400 mt-4">
                 {isVerifying ? (
                   <>
                     <button
