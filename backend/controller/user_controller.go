@@ -49,11 +49,6 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if existingUser != nil {
-		http.Error(w, "User already exists", http.StatusConflict)
-		return
-	}
-
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
 		http.Error(w, "Error while hashing password: "+err.Error(), http.StatusInternalServerError)
@@ -62,10 +57,24 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 
 	user.Password = string(hashedPassword)
 
-	// Save user to database before generating OTP
-	if err := h.store.CreateUser(&user); err != nil {
-		http.Error(w, "Error saving user: "+err.Error(), http.StatusInternalServerError)
-		return
+	if existingUser != nil {
+		if existingUser.IsVerifiedEmail {
+			http.Error(w, "User already exists", http.StatusConflict)
+			return
+		}
+		// User exists but isn't verified. We will reuse their existing account and resend OTP.
+		user.UserID = existingUser.UserID
+		existingUser.Password = user.Password
+		if err := h.store.UpdateUserByID(existingUser.UserID, existingUser); err != nil {
+			http.Error(w, "Error updating user password: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	} else {
+		// Save user to database before generating OTP
+		if err := h.store.CreateUser(&user); err != nil {
+			http.Error(w, "Error saving user: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	otp := GenerateOTP()
@@ -75,6 +84,11 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error setting OTP: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// Log the OTP to console so it's easy to test locally
+	fmt.Printf("\n======================================================\n")
+	fmt.Printf("🔒 OTP for %s: %s\n", user.EmailID, otp)
+	fmt.Printf("======================================================\n\n")
 
 	go func() {
 		err := utils.SendOTP(user.EmailID, user.UserName, otp)
