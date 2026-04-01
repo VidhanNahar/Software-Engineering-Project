@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt"
@@ -229,12 +230,22 @@ func (h *UserHandler) CompleteKYC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.AadharID == nil && req.PanID == nil {
-		http.Error(w, "At least one KYC field is required", http.StatusBadRequest)
+	var finalAadhar, finalPan *string
+	if req.AadharID != nil && strings.TrimSpace(*req.AadharID) != "" {
+		val := strings.TrimSpace(*req.AadharID)
+		finalAadhar = &val
+	}
+	if req.PanID != nil && strings.TrimSpace(*req.PanID) != "" {
+		val := strings.TrimSpace(*req.PanID)
+		finalPan = &val
+	}
+
+	if finalAadhar == nil && finalPan == nil {
+		http.Error(w, "At least one valid KYC field is required", http.StatusBadRequest)
 		return
 	}
 
-	if err := h.store.CompleteKYC(requesterID, req.AadharID, req.PanID); err != nil {
+	if err := h.store.CompleteKYC(requesterID, finalAadhar, finalPan); err != nil {
 		if err == store.ErrUserNotFound {
 			http.Error(w, "User not found", http.StatusNotFound)
 			return
