@@ -92,10 +92,13 @@ export const stockApi = {
   search: (query: string) =>
     apiCall(`/stocks/search?q=${encodeURIComponent(query)}`),
   getById: (id: string) => apiCall(`/stocks/${id}`),
-  getBySymbol: (symbol: string) => apiCall(`/stocks/symbol/${encodeURIComponent(symbol)}`),
+  getBySymbol: (symbol: string) =>
+    apiCall(`/stocks/symbol/${encodeURIComponent(symbol)}`),
   getStats: (id: string) => apiCall(`/stocks/${id}/stats`),
   getTicks: (symbol: string, limit = 200) =>
-    apiCall(`/stocks/symbol/${encodeURIComponent(symbol)}/ticks?limit=${limit}`),
+    apiCall(
+      `/stocks/symbol/${encodeURIComponent(symbol)}/ticks?limit=${limit}`,
+    ),
   getCandles: (symbol: string, timeframe = "1m", limit = 200) =>
     apiCall(
       `/stocks/symbol/${encodeURIComponent(symbol)}/candles?timeframe=${encodeURIComponent(
@@ -167,5 +170,14 @@ export const adminApi = {
   stopMarket: () =>
     apiCall("/admin/market/stop", {
       method: "POST",
+    }),
+};
+
+export const userApi = {
+  getProfile: (userId: string) => apiCall(`/user/${userId}`),
+  completeKyc: (data: { aadhar_id?: string; pan_id?: string }) =>
+    apiCall("/user/kyc/complete", {
+      method: "POST",
+      body: JSON.stringify(data),
     }),
 };

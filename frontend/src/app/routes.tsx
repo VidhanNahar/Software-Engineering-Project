@@ -7,6 +7,7 @@ import Portfolio from "./pages/Portfolio";
 import Trade from "./pages/Trade";
 import MarketOverview from "./pages/MarketOverview";
 import Admin from "./pages/Admin";
+import Profile from "./pages/Profile";
 import Layout from "./components/Layout";
 
 export const router = createBrowserRouter([
@@ -27,6 +28,7 @@ export const router = createBrowserRouter([
       { path: "portfolio", Component: Portfolio },
       { path: "trade", Component: Trade },
       { path: "market", Component: MarketOverview },
+      { path: "profile", Component: Profile },
       {
         path: "admin",
         element: (

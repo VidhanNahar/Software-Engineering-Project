@@ -4,7 +4,7 @@ import {
   TrendingUp,
   Wallet,
   BarChart3,
-  Settings,
+  User,
   LogOut,
   Bell,
   Search,
@@ -96,10 +96,10 @@ export default function Layout() {
           <Button
             variant="ghost"
             className="w-full justify-start"
-            onClick={() => toast.info("Settings coming soon")}
+            onClick={() => navigate("/profile")}
           >
-            <Settings className="w-5 h-5 mr-3" />
-            Settings
+            <User className="w-5 h-5 mr-3" />
+            Profile
           </Button>
           <Button
             variant="ghost"
@@ -147,7 +147,10 @@ export default function Layout() {
               <Button variant="ghost" size="icon">
                 <Bell className="w-5 h-5" />
               </Button>
-              <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate("/profile")}
+                className="flex items-center gap-3 text-left hover:opacity-80 transition-opacity"
+              >
                 <div className="text-right">
                   <p className="text-sm font-medium text-foreground">
                     {userName}
@@ -156,10 +159,10 @@ export default function Layout() {
                     {userRole === "admin" ? "Administrator" : "Trader Account"}
                   </p>
                 </div>
-                <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold">
+                <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold shrink-0">
                   {userInitials}
                 </div>
-              </div>
+              </button>
             </div>
           </div>
         </header>
