@@ -4,6 +4,7 @@ import (
 	"backend-go/model"
 	"context"
 	"database/sql"
+	"fmt"
 	"math"
 	"math/rand"
 	"time"
@@ -85,6 +86,9 @@ func (s *Store) SimulateTickCycle(ctx context.Context, now time.Time) ([]model.S
 	rng := rand.New(rand.NewSource(now.UnixNano()))
 	ticks := make([]model.StockTick, 0, len(snapshots))
 
+	// Track symbols that had price changes for cache invalidation
+	changedSymbols := make([]string, 0, len(snapshots))
+
 	for _, s := range snapshots {
 		nextPrice := nextSimulatedPrice(s.price, s.previousClose, s.symbol, rng)
 		nextPrice = roundTo(nextPrice, 2)
@@ -92,6 +96,8 @@ func (s *Store) SimulateTickCycle(ctx context.Context, now time.Time) ([]model.S
 		if nextPrice == s.price {
 			continue
 		}
+
+		changedSymbols = append(changedSymbols, s.symbol)
 
 		qty := int64(rng.Intn(50) + 1)
 
@@ -135,6 +141,15 @@ func (s *Store) SimulateTickCycle(ctx context.Context, now time.Time) ([]model.S
 
 	if err := tx.Commit(); err != nil {
 		return nil, err
+	}
+
+	// Invalidate stock caches if any prices changed
+	if len(changedSymbols) > 0 {
+		cacheKeys := []string{"stocks:all", "stocks:top:50", "stocks:top:100"}
+		for _, sym := range changedSymbols {
+			cacheKeys = append(cacheKeys, fmt.Sprintf("stock:symbol:%s", sym))
+		}
+		s.rdb.Del(ctx, cacheKeys...)
 	}
 
 	return ticks, nil

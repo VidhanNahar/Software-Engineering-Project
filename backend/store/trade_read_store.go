@@ -5,6 +5,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -43,6 +46,16 @@ func (s *Store) RefreshSimulatedPrices(ctx context.Context) error {
 
 // GetStocks returns current market quotes for all stocks.
 func (s *Store) GetStocks() ([]model.StockQuote, error) {
+	const cacheKey = "stocks:all"
+	ctx := context.Background()
+
+	if cached, err := s.GetCacheValue(ctx, cacheKey); err == nil && cached != "" {
+		var quotes []model.StockQuote
+		if jsonErr := json.Unmarshal([]byte(cached), &quotes); jsonErr == nil {
+			return quotes, nil
+		}
+	}
+
 	rows, err := s.db.Query(`
 		SELECT
 			stock_id,
@@ -113,6 +126,12 @@ func (s *Store) GetStocks() ([]model.StockQuote, error) {
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+
+	// Cache the result for 5 seconds (frequent updates during market hours)
+	if data, jsonErr := json.Marshal(quotes); jsonErr == nil {
+		s.SetCacheValue(ctx, cacheKey, string(data), 5)
+	}
+
 	return quotes, nil
 }
 
@@ -181,6 +200,16 @@ func (s *Store) GetOrdersByUser(userID uuid.UUID) ([]model.OrderRecord, error) {
 }
 
 func (s *Store) GetStockByID(stockID uuid.UUID) (*model.StockQuote, error) {
+	cacheKey := fmt.Sprintf("stock:id:%s", stockID.String())
+	ctx := context.Background()
+
+	if cached, err := s.GetCacheValue(ctx, cacheKey); err == nil && cached != "" {
+		var quote model.StockQuote
+		if jsonErr := json.Unmarshal([]byte(cached), &quote); jsonErr == nil {
+			return &quote, nil
+		}
+	}
+
 	row := s.db.QueryRow(`
 		SELECT
 			stock_id,
@@ -243,10 +272,26 @@ func (s *Store) GetStockByID(stockID uuid.UUID) (*model.StockQuote, error) {
 	if isin.Valid {
 		quote.ISIN = isin.String
 	}
+
+	// Cache for 5 seconds
+	if data, jsonErr := json.Marshal(quote); jsonErr == nil {
+		s.SetCacheValue(ctx, cacheKey, string(data), 5)
+	}
+
 	return &quote, nil
 }
 
 func (s *Store) GetStockBySymbol(symbol string) (*model.StockQuote, error) {
+	cacheKey := fmt.Sprintf("stock:symbol:%s", strings.ToUpper(symbol))
+	ctx := context.Background()
+
+	if cached, err := s.GetCacheValue(ctx, cacheKey); err == nil && cached != "" {
+		var quote model.StockQuote
+		if jsonErr := json.Unmarshal([]byte(cached), &quote); jsonErr == nil {
+			return &quote, nil
+		}
+	}
+
 	row := s.db.QueryRow(`SELECT stock_id FROM stock WHERE symbol = UPPER($1)`, symbol)
 	var stockID uuid.UUID
 	if err := row.Scan(&stockID); err != nil {
@@ -255,10 +300,31 @@ func (s *Store) GetStockBySymbol(symbol string) (*model.StockQuote, error) {
 		}
 		return nil, err
 	}
-	return s.GetStockByID(stockID)
+
+	quote, err := s.GetStockByID(stockID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache for 5 seconds
+	if data, jsonErr := json.Marshal(quote); jsonErr == nil {
+		s.SetCacheValue(ctx, cacheKey, string(data), 5)
+	}
+
+	return quote, nil
 }
 
 func (s *Store) SearchStocks(query string) ([]model.StockQuote, error) {
+	cacheKey := fmt.Sprintf("stocks:search:%s", strings.ToLower(query))
+	ctx := context.Background()
+
+	if cached, err := s.GetCacheValue(ctx, cacheKey); err == nil && cached != "" {
+		var quotes []model.StockQuote
+		if jsonErr := json.Unmarshal([]byte(cached), &quotes); jsonErr == nil {
+			return quotes, nil
+		}
+	}
+
 	rows, err := s.db.Query(`
 		SELECT
 			stock_id,
@@ -327,7 +393,17 @@ func (s *Store) SearchStocks(query string) ([]model.StockQuote, error) {
 		}
 		quotes = append(quotes, quote)
 	}
-	return quotes, rows.Err()
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Cache search results for 10 seconds (less frequent updates)
+	if data, jsonErr := json.Marshal(quotes); jsonErr == nil {
+		s.SetCacheValue(ctx, cacheKey, string(data), 10)
+	}
+
+	return quotes, nil
 }
 
 func (s *Store) GetStockHistory(stockID uuid.UUID, limit int) ([]model.StockHistoryPoint, error) {
@@ -367,6 +443,7 @@ func (s *Store) GetStockHistory(stockID uuid.UUID, limit int) ([]model.StockHist
 }
 
 func (s *Store) AdminCreateStock(req model.AdminStockUpsertRequest) error {
+	ctx := context.Background()
 	_, err := s.db.Exec(`
 		INSERT INTO stock (
 			symbol, name, series, isin, price, previous_close, open_price, day_high, day_low, close_price,
@@ -408,10 +485,17 @@ func (s *Store) AdminCreateStock(req model.AdminStockUpsertRequest) error {
 		req.TotalTradedValue,
 		req.Quantity,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Invalidate relevant caches
+	s.rdb.Del(ctx, "stocks:all", "stocks:top:50", "stocks:top:100", fmt.Sprintf("stock:symbol:%s", strings.ToUpper(req.Symbol)))
+	return nil
 }
 
 func (s *Store) AdminUpdateStock(stockID uuid.UUID, req model.AdminStockUpsertRequest) error {
+	ctx := context.Background()
 	res, err := s.db.Exec(`
 		UPDATE stock
 		SET symbol = UPPER($1),
@@ -459,10 +543,24 @@ func (s *Store) AdminUpdateStock(stockID uuid.UUID, req model.AdminStockUpsertRe
 	if rows == 0 {
 		return ErrStockNotFound
 	}
+
+	// Invalidate relevant caches
+	s.rdb.Del(ctx, "stocks:all", "stocks:top:50", "stocks:top:100", fmt.Sprintf("stock:id:%s", stockID.String()), fmt.Sprintf("stock:symbol:%s", strings.ToUpper(req.Symbol)))
 	return nil
 }
 
 func (s *Store) AdminDeleteStock(stockID uuid.UUID) error {
+	ctx := context.Background()
+	// Fetch stock symbol before deletion for cache invalidation
+	var symbol string
+	err := s.db.QueryRow(`SELECT symbol FROM stock WHERE stock_id = $1`, stockID).Scan(&symbol)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrStockNotFound
+		}
+		return err
+	}
+
 	res, err := s.db.Exec(`DELETE FROM stock WHERE stock_id = $1`, stockID)
 	if err != nil {
 		return err
@@ -474,12 +572,25 @@ func (s *Store) AdminDeleteStock(stockID uuid.UUID) error {
 	if rows == 0 {
 		return ErrStockNotFound
 	}
+
+	// Invalidate relevant caches
+	s.rdb.Del(ctx, "stocks:all", "stocks:top:50", "stocks:top:100", fmt.Sprintf("stock:id:%s", stockID.String()), fmt.Sprintf("stock:symbol:%s", strings.ToUpper(symbol)))
 	return nil
 }
 
 func (s *Store) GetTopStocks(limit int) ([]model.StockQuote, error) {
 	if limit <= 0 {
 		limit = 50
+	}
+
+	cacheKey := fmt.Sprintf("stocks:top:%d", limit)
+	ctx := context.Background()
+
+	if cached, err := s.GetCacheValue(ctx, cacheKey); err == nil && cached != "" {
+		var quotes []model.StockQuote
+		if jsonErr := json.Unmarshal([]byte(cached), &quotes); jsonErr == nil {
+			return quotes, nil
+		}
 	}
 
 	rows, err := s.db.Query(`
@@ -549,6 +660,16 @@ func (s *Store) GetTopStocks(limit int) ([]model.StockQuote, error) {
 		}
 		quotes = append(quotes, quote)
 	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Cache for 5 seconds
+	if data, jsonErr := json.Marshal(quotes); jsonErr == nil {
+		s.SetCacheValue(ctx, cacheKey, string(data), 5)
+	}
+
 	return quotes, rows.Err()
 }
 
