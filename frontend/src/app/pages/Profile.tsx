@@ -229,24 +229,28 @@ export default function Profile() {
                 <p className="text-sm text-green-600/80 dark:text-green-400/80 mt-1 max-w-[250px]">
                   Your account is fully verified and ready for trading.
                 </p>
-                <div className="mt-6 w-full space-y-2 text-left bg-background/50 p-3 rounded text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Aadhar ID:</span>
-                    <span className="font-mono text-foreground">
-                      {profile.aadhar_id
-                        ? `•••• ${profile.aadhar_id.slice(-4)}`
-                        : "N/A"}
-                    </span>
+                {(profile.aadhar_id || profile.pan_id) && (
+                  <div className="mt-6 w-full space-y-2 text-left bg-background/50 p-3 rounded text-sm">
+                    {profile.aadhar_id && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">
+                          Aadhar ID:
+                        </span>
+                        <span className="font-mono text-foreground">
+                          •••• {profile.aadhar_id.slice(-4)}
+                        </span>
+                      </div>
+                    )}
+                    {profile.pan_id && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">PAN ID:</span>
+                        <span className="font-mono text-foreground">
+                          •••••• {profile.pan_id.slice(-4)}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">PAN ID:</span>
-                    <span className="font-mono text-foreground">
-                      {profile.pan_id
-                        ? `•••••• ${profile.pan_id.slice(-4)}`
-                        : "N/A"}
-                    </span>
-                  </div>
-                </div>
+                )}
               </div>
             ) : (
               <form onSubmit={handleKycSubmit} className="space-y-4">
