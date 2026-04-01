@@ -207,8 +207,8 @@ export default function Portfolio() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-full text-white">
-        <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
+      <div className="flex justify-center items-center h-full">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
       </div>
     );
   }
@@ -238,25 +238,23 @@ export default function Portfolio() {
   ];
 
   return (
-    <div className="space-y-6 text-white max-w-7xl mx-auto">
+    <div className="space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white">Portfolio</h1>
-          <p className="text-gray-300 mt-1">
+          <h1 className="text-3xl font-bold">Portfolio</h1>
+          <p className="text-muted-foreground mt-1">
             Track your investments and performance
           </p>
         </div>
         <div className="flex gap-2">
           <Button
             variant="outline"
-            className="text-gray-900 dark:text-white border-gray-700"
           >
             <Filter className="w-4 h-4 mr-2" />
             Filter
           </Button>
           <Button
             variant="outline"
-            className="text-gray-900 dark:text-white border-gray-700"
           >
             <Download className="w-4 h-4 mr-2" />
             Export
@@ -265,19 +263,19 @@ export default function Portfolio() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="text-white bg-card">
+        <Card>
           <CardContent className="p-6">
-            <p className="text-sm text-gray-300">Total Value</p>
-            <p className="text-2xl font-bold text-white mt-1">
+            <p className="text-sm text-muted-foreground">Total Value</p>
+            <p className="text-2xl font-bold mt-1">
               $
               {totalValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
             </p>
           </CardContent>
         </Card>
-        <Card className="text-white bg-card">
+        <Card>
           <CardContent className="p-6">
-            <p className="text-sm text-gray-300">Buying Power</p>
-            <p className="text-2xl font-bold text-white mt-1">
+            <p className="text-sm text-muted-foreground">Buying Power</p>
+            <p className="text-2xl font-bold mt-1">
               $
               {wallet.balance.toLocaleString("en-US", {
                 minimumFractionDigits: 2,
@@ -285,9 +283,9 @@ export default function Portfolio() {
             </p>
           </CardContent>
         </Card>
-        <Card className="text-white bg-card">
+        <Card>
           <CardContent className="p-6">
-            <p className="text-sm text-gray-300">Total Gain/Loss</p>
+            <p className="text-sm text-muted-foreground">Total Gain/Loss</p>
             <div className="flex items-center gap-2 mt-1">
               <p
                 className={`text-2xl font-bold ${
@@ -302,9 +300,9 @@ export default function Portfolio() {
             </div>
           </CardContent>
         </Card>
-        <Card className="text-white bg-card">
+        <Card>
           <CardContent className="p-6">
-            <p className="text-sm text-gray-300">Overall Return</p>
+            <p className="text-sm text-muted-foreground">Overall Return</p>
             <div className="flex items-center gap-2 mt-1">
               <p
                 className={`text-2xl font-bold ${
@@ -321,17 +319,17 @@ export default function Portfolio() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <Card className="text-white bg-card">
+          <Card>
             <CardHeader>
-              <CardTitle className="text-white">Holdings</CardTitle>
+              <CardTitle>Holdings</CardTitle>
             </CardHeader>
             <CardContent>
               {holdings.length === 0 ? (
                 <div className="text-center py-12">
-                  <TrendingUp className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-                  <p className="text-gray-300">You don't own any stocks yet.</p>
+                  <TrendingUp className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground">You don't own any stocks yet.</p>
                   <Button
-                    className="mt-4 bg-blue-600 hover:bg-blue-700"
+                    className="mt-4"
                     onClick={() => navigate("/market")}
                   >
                     Start Trading
@@ -342,20 +340,20 @@ export default function Portfolio() {
                   {holdings.map((holding) => (
                     <div
                       key={holding.symbol}
-                      className="p-4 border border-gray-700 rounded-lg hover:border-white hover:bg-transparent cursor-pointer transition-colors"
+                      className="p-4 border border-border rounded-lg hover:border-primary/50 hover:bg-accent/50 cursor-pointer transition-colors"
                       onClick={() => navigate(`/stock/${holding.symbol}`)}
                     >
                       <div className="flex items-start justify-between mb-3">
                         <div>
-                          <p className="font-semibold text-white text-lg">
+                          <p className="font-semibold text-lg">
                             {holding.symbol}
                           </p>
-                          <p className="text-sm text-gray-400">
+                          <p className="text-sm text-muted-foreground">
                             {holding.name}
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="font-semibold text-white">
+                          <p className="font-semibold">
                             $
                             {holding.totalValue.toLocaleString("en-US", {
                               minimumFractionDigits: 2,
@@ -375,28 +373,28 @@ export default function Portfolio() {
                           </div>
                         </div>
                       </div>
-                      <div className="grid grid-cols-4 gap-4 text-sm mt-4 pt-4 border-t border-gray-800">
+                      <div className="grid grid-cols-4 gap-4 text-sm mt-4 pt-4 border-t border-border">
                         <div>
-                          <p className="text-gray-400 mb-1">Quantity</p>
-                          <p className="font-medium text-white">
+                          <p className="text-muted-foreground mb-1">Quantity</p>
+                          <p className="font-medium">
                             {holding.quantity}
                           </p>
                         </div>
                         <div>
-                          <p className="text-gray-400 mb-1">Avg Price</p>
-                          <p className="font-medium text-white">
+                          <p className="text-muted-foreground mb-1">Avg Price</p>
+                          <p className="font-medium">
                             ${holding.avgPrice.toFixed(2)}
                           </p>
                         </div>
                         <div>
-                          <p className="text-gray-400 mb-1">Current Price</p>
-                          <p className="font-medium text-white">
+                          <p className="text-muted-foreground mb-1">Current Price</p>
+                          <p className="font-medium">
                             ${holding.currentPrice.toFixed(2)}
                           </p>
                         </div>
                         <div>
-                          <p className="text-gray-400 mb-1">Portfolio %</p>
-                          <p className="font-medium text-white">
+                          <p className="text-muted-foreground mb-1">Portfolio %</p>
+                          <p className="font-medium">
                             {(
                               (holding.totalValue / totalValue) * 100 || 0
                             ).toFixed(1)}
@@ -413,13 +411,13 @@ export default function Portfolio() {
         </div>
 
         <div className="space-y-6">
-          <Card className="text-white bg-card">
+          <Card>
             <CardHeader>
-              <CardTitle className="text-white">Asset Allocation</CardTitle>
+              <CardTitle>Asset Allocation</CardTitle>
             </CardHeader>
             <CardContent>
               {holdings.length === 0 ? (
-                <p className="text-center py-8 text-gray-400">
+                <p className="text-center py-8 text-muted-foreground">
                   No assets to display
                 </p>
               ) : (
@@ -444,12 +442,12 @@ export default function Portfolio() {
                         ))}
                       </Pie>
                       <Tooltip
-                        itemStyle={{ color: "white" }}
-                        labelStyle={{ color: "white" }}
+                        itemStyle={{ color: "var(--foreground)" }}
+                        labelStyle={{ color: "var(--foreground)" }}
                         contentStyle={{
-                          backgroundColor: "#1f2937",
-                          border: "1px solid #4b5563",
-                          color: "white",
+                          backgroundColor: "var(--popover)",
+                          border: "1px solid var(--border)",
+                          color: "var(--foreground)",
                           borderRadius: "8px",
                         }}
                         formatter={(
@@ -468,13 +466,13 @@ export default function Portfolio() {
             </CardContent>
           </Card>
 
-          <Card className="text-white bg-card">
+          <Card>
             <CardHeader>
-              <CardTitle className="text-white">Recent Trades</CardTitle>
+              <CardTitle>Recent Trades</CardTitle>
             </CardHeader>
             <CardContent>
               {trades.length === 0 ? (
-                <p className="text-gray-400 text-center py-4">
+                <p className="text-muted-foreground text-center py-4">
                   No recent activity
                 </p>
               ) : (
@@ -482,7 +480,7 @@ export default function Portfolio() {
                   {trades.slice(0, 5).map((trade, i) => (
                     <div
                       key={i}
-                      className="flex items-center justify-between p-3 border border-gray-800 rounded-lg"
+                      className="flex items-center justify-between p-3 border border-border rounded-lg"
                     >
                       <div>
                         <div className="flex items-center gap-2">
@@ -495,24 +493,24 @@ export default function Portfolio() {
                           >
                             {trade.type}
                           </span>
-                          <span className="font-bold text-white">
+                          <span className="font-bold">
                             {trade.symbol || "STK"}
                           </span>
                         </div>
-                        <p className="text-xs text-gray-400 mt-1">
+                        <p className="text-xs text-muted-foreground mt-1">
                           {new Date(
                             trade.timestamp || Date.now(),
                           ).toLocaleDateString()}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="font-semibold text-white">
+                        <p className="font-semibold">
                           {trade.quantity} @ $
                           {Number(
                             trade.price || trade.price_per_stock || 0,
                           ).toFixed(2)}
                         </p>
-                        <p className="text-sm text-gray-300">
+                        <p className="text-sm text-muted-foreground">
                           $
                           {(
                             trade.quantity *

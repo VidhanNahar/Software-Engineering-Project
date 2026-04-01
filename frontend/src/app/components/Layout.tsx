@@ -144,9 +144,6 @@ export default function Layout() {
                   <Sun className="w-5 h-5" />
                 )}
               </Button>
-              <Button variant="ghost" size="icon">
-                <Bell className="w-5 h-5" />
-              </Button>
               <button
                 onClick={() => navigate("/profile")}
                 className="flex items-center gap-3 text-left hover:opacity-80 transition-opacity"
