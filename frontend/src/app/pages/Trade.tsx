@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useLocation } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import {
   Card,
   CardContent,
@@ -22,12 +22,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select";
-import { TrendingUp, TrendingDown, AlertCircle, Loader2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "../components/ui/dialog";
+import { TrendingUp, TrendingDown, AlertCircle, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { stockApi, transactionApi, walletApi, portfolioApi } from "../api";
 
 export default function Trade() {
   const location = useLocation();
+  const navigate = useNavigate();
   const state = location.state as {
     symbol?: string;
     type?: "buy" | "sell";
@@ -48,6 +56,8 @@ export default function Trade() {
   const [timeInForce, setTimeInForce] = useState("day");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -190,11 +200,17 @@ export default function Trade() {
 
       if (orderType === "buy") {
         await transactionApi.buy(payload);
-        toast.success(`Successfully placed buy order for ${qty} shares!`);
+        setSuccessMessage(`Successfully placed buy order for ${qty} shares!`);
       } else {
         await transactionApi.sell(payload);
-        toast.success(`Successfully placed sell order for ${qty} shares!`);
+        setSuccessMessage(`Successfully placed sell order for ${qty} shares!`);
       }
+
+      setIsSuccessDialogOpen(true);
+
+      setTimeout(() => {
+        navigate("/portfolio");
+      }, 3000);
 
       // Refresh wallet & portfolio after trade
       const [walletRes, portfolioRes] = await Promise.all([
@@ -224,6 +240,20 @@ export default function Trade() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
+      <Dialog open={isSuccessDialogOpen} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md bg-gray-900 border-gray-700 text-white flex flex-col items-center justify-center py-10 [&>button]:hidden">
+          <div className="bg-green-500/10 p-3 rounded-full mb-4">
+            <CheckCircle2 className="w-12 h-12 text-green-500" />
+          </div>
+          <DialogTitle className="text-2xl font-bold text-center mb-2">
+            Trade Successful
+          </DialogTitle>
+          <DialogDescription className="text-gray-300 text-center text-lg">
+            {successMessage}
+          </DialogDescription>
+        </DialogContent>
+      </Dialog>
+
       <div>
         <h1 className="text-3xl font-bold text-white">Trade</h1>
         <p className="text-gray-300 mt-1">Place buy or sell orders</p>
