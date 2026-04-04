@@ -162,6 +162,7 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
+	// Replace the old log.Fatal(http.ListenAndServe(":"+port, r)) with this:
 	log.Printf("Server starting on port %s...", port)
-	log.Fatal(http.ListenAndServe(":"+port, r))
+	log.Fatal(http.ListenAndServe(":"+port, corsMiddleware(r)))
 }
