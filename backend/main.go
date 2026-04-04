@@ -78,7 +78,7 @@ func main() {
 			// Replace this with your specific IP or use "*" to allow everything for now
 			w.Header().Set("Access-Control-Allow-Origin", "http://20.193.252.172")
 			w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization, X-Requested-With")
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 			// 2. Handle the Preflight (OPTIONS) request
