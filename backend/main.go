@@ -73,6 +73,26 @@ func main() {
 
 	// Create a http router
 	r := mux.NewRouter()
+	corsMiddleware := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Replace this with your specific IP or use "*" to allow everything for now
+			w.Header().Set("Access-Control-Allow-Origin", "http://20.193.252.172")
+			w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+			// 2. Handle the Preflight (OPTIONS) request
+			if r.Method == "OPTIONS" {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	// 3. Tell the router to use this middleware
+	r.Use(corsMiddleware)
 	broadcaster := market.NewWebSocketBroadcaster()
 	marketService := market.NewMarketService(s, broadcaster)
 	log.Println("Starting market engine loop")
