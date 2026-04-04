@@ -51,7 +51,7 @@ export function ClosePriceLineChart({ data, symbol }: Props) {
             mode: "index",
             intersect: false,
             callbacks: {
-              label: (ctx) => `$${Number(ctx.parsed.y).toFixed(2)}`,
+              label: (ctx) => `₹${Number(ctx.parsed.y).toFixed(2)}`,
             },
           },
         },
@@ -60,7 +60,7 @@ export function ClosePriceLineChart({ data, symbol }: Props) {
           y: {
             ticks: {
               color: "#94a3b8",
-              callback: (value) => `$${value}`,
+              callback: (value) => `₹${value}`,
             },
             grid: { color: "rgba(51, 65, 85, 0.25)" },
           },

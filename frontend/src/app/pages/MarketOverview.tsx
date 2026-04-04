@@ -187,7 +187,7 @@ export default function MarketOverview() {
               <p className="text-sm text-gray-300">{stock.symbol}</p>
               <p className="text-xs text-gray-400 truncate">{stock.name}</p>
               <p className="text-2xl font-bold text-white mt-1">
-                $
+                ₹
                 {stock.price.toLocaleString("en-US", {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,

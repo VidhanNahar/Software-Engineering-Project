@@ -391,7 +391,7 @@ export default function Dashboard() {
           <CardContent className="p-6">
             <p className="text-sm text-gray-300">Wallet Balance</p>
             <p className="text-2xl font-bold text-white mt-1">
-              $
+              ₹
               {wallet.balance.toLocaleString("en-US", {
                 minimumFractionDigits: 2,
               })}
@@ -402,7 +402,7 @@ export default function Dashboard() {
           <CardContent className="p-6">
             <p className="text-sm text-gray-300">Total Portfolio Value</p>
             <p className="text-2xl font-bold text-white mt-1">
-              $
+              ₹
               {totalValue.toLocaleString("en-US", {
                 minimumFractionDigits: 2,
               })}
@@ -417,7 +417,7 @@ export default function Dashboard() {
                 totalGainLoss >= 0 ? "text-green-500" : "text-red-500"
               }`}
             >
-              {totalGainLoss >= 0 ? "+" : ""}$
+              {totalGainLoss >= 0 ? "+" : ""}₹
               {totalGainLoss.toLocaleString("en-US", {
                 minimumFractionDigits: 2,
               })}
@@ -480,7 +480,7 @@ export default function Dashboard() {
                       </div>
                       <div className="text-right">
                         <p className="font-semibold text-white">
-                          $
+                          ₹
                           {(
                             holding.quantity * holding.currentPrice
                           ).toLocaleString("en-US", {
@@ -494,7 +494,7 @@ export default function Dashboard() {
                               : "text-red-500"
                           }`}
                         >
-                          {holding.totalGainLoss >= 0 ? "+" : ""}$
+                          {holding.totalGainLoss >= 0 ? "+" : ""}₹
                           {holding.totalGainLoss.toFixed(2)}
                         </p>
                       </div>

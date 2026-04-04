@@ -17,6 +17,8 @@ type StockQuote struct {
 	StockID           uuid.UUID `json:"stock_id"`
 	Symbol            string    `json:"symbol"`
 	Name              string    `json:"name"`
+	CurrencyCode      string    `json:"currency_code"`
+	Country           string    `json:"country"`
 	Series            string    `json:"series"`
 	ISIN              string    `json:"isin,omitempty"`
 	Price             float64   `json:"price"`
@@ -41,6 +43,7 @@ type PortfolioPosition struct {
 	UserID         uuid.UUID `json:"user_id"`
 	StockID        uuid.UUID `json:"stock_id"`
 	StockName      string    `json:"stock_name"`
+	CurrencyCode   string    `json:"currency_code"`
 	Quantity       int       `json:"quantity"`
 	AvgBuyPrice    float64   `json:"avg_buy_price"`
 	CurrentPrice   float64   `json:"current_price"`
@@ -94,6 +97,7 @@ type WatchlistItem struct {
 	WatchlistName string    `json:"watchlist_name"`
 	Symbol        string    `json:"symbol"`
 	Name          string    `json:"name"`
+	CurrencyCode  string    `json:"currency_code"`
 	Price         float64   `json:"price"`
 	Change        float64   `json:"change"`
 	ChangePercent float64   `json:"change_percent"`
@@ -101,14 +105,14 @@ type WatchlistItem struct {
 }
 
 type AlertRule struct {
-	AlertID      uuid.UUID `json:"alert_id"`
-	UserID       uuid.UUID `json:"user_id"`
-	StockID      uuid.UUID `json:"stock_id"`
-	TargetPrice  float64   `json:"target_price"`
-	Direction    string    `json:"direction"`
-	IsActive     bool      `json:"is_active"`
-	CreatedAt    time.Time `json:"created_at"`
-	TriggeredAt  *time.Time `json:"triggered_at,omitempty"`
+	AlertID     uuid.UUID  `json:"alert_id"`
+	UserID      uuid.UUID  `json:"user_id"`
+	StockID     uuid.UUID  `json:"stock_id"`
+	TargetPrice float64    `json:"target_price"`
+	Direction   string     `json:"direction"`
+	IsActive    bool       `json:"is_active"`
+	CreatedAt   time.Time  `json:"created_at"`
+	TriggeredAt *time.Time `json:"triggered_at,omitempty"`
 }
 
 type NotificationItem struct {

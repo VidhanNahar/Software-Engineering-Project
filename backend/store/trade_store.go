@@ -4,10 +4,18 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+func getConversionRate(currency string) float64 {
+	if strings.ToUpper(currency) == "USD" {
+		return 83.5
+	}
+	return 1.0
+}
 
 var (
 	// Returned when wallet balance is lower than buy amount.
@@ -43,11 +51,13 @@ func (s *Store) ExecuteBuyTx(ctx context.Context, req TradeRequest) error {
 
 	// Price is fetched inside tx so all reads/writes share one boundary.
 	var stockPrice float64
-	if err = tx.QueryRowContext(ctx, `SELECT price FROM stock WHERE stock_id = $1`, req.StockID).Scan(&stockPrice); err != nil {
+	var currencyCode string
+	if err = tx.QueryRowContext(ctx, `SELECT price, currency_code FROM stock WHERE stock_id = $1`, req.StockID).Scan(&stockPrice, &currencyCode); err != nil {
 		return err
 	}
 
-	totalCost := stockPrice * float64(req.Quantity)
+	conversionRate := getConversionRate(currencyCode)
+	totalCost := stockPrice * float64(req.Quantity) * conversionRate
 	// Lock wallet row to prevent double-spend in concurrent buys.
 	var balance float64
 	err = tx.QueryRowContext(ctx, `SELECT balance from wallet WHERE user_id=$1 FOR UPDATE`, req.UserID).Scan(&balance)
@@ -134,7 +144,8 @@ func (s *Store) ExecuteSellTx(ctx context.Context, req TradeRequest) error {
 
 	// Current price is used to compute credited sell amount.
 	var stockPrice float64
-	if err = tx.QueryRowContext(ctx, `SELECT price FROM stock WHERE stock_id = $1`, req.StockID).Scan(&stockPrice); err != nil {
+	var currencyCode string
+	if err = tx.QueryRowContext(ctx, `SELECT price, currency_code FROM stock WHERE stock_id = $1`, req.StockID).Scan(&stockPrice, &currencyCode); err != nil {
 		return err
 	}
 
@@ -164,7 +175,8 @@ func (s *Store) ExecuteSellTx(ctx context.Context, req TradeRequest) error {
 	}
 
 	// Credit wallet only after shares are reduced.
-	sellAmount := stockPrice * float64(req.Quantity)
+	conversionRate := getConversionRate(currencyCode)
+	sellAmount := stockPrice * float64(req.Quantity) * conversionRate
 	walletRes, err := tx.ExecContext(ctx, `UPDATE wallet SET balance = balance + $1 WHERE user_id = $2`, sellAmount, req.UserID)
 	if err != nil {
 		return err

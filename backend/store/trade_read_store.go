@@ -4,8 +4,8 @@ import (
 	"backend-go/model"
 	"context"
 	"database/sql"
-	"errors"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -61,6 +61,8 @@ func (s *Store) GetStocks() ([]model.StockQuote, error) {
 			stock_id,
 			symbol,
 			name,
+			currency_code,
+			country,
 			series,
 			isin,
 			price,
@@ -97,6 +99,8 @@ func (s *Store) GetStocks() ([]model.StockQuote, error) {
 			&quote.StockID,
 			&quote.Symbol,
 			&quote.Name,
+			&quote.CurrencyCode,
+			&quote.Country,
 			&quote.Series,
 			&isin,
 			&quote.Price,
@@ -138,7 +142,7 @@ func (s *Store) GetStocks() ([]model.StockQuote, error) {
 // GetPortfolioByUser returns user holdings with current valuation.
 func (s *Store) GetPortfolioByUser(userID uuid.UUID) ([]model.PortfolioPosition, error) {
 	rows, err := s.db.Query(`
-		SELECT p.user_id, p.stock_id, st.name, p.quantity, p.price, st.price, (p.quantity * st.price), p.transaction_time
+		SELECT p.user_id, p.stock_id, st.name, st.currency_code, p.quantity, p.price, st.price, (p.quantity * st.price), p.transaction_time
 		FROM portfolio p
 		INNER JOIN stock st ON st.stock_id = p.stock_id
 		WHERE p.user_id = $1
@@ -155,6 +159,7 @@ func (s *Store) GetPortfolioByUser(userID uuid.UUID) ([]model.PortfolioPosition,
 			&position.UserID,
 			&position.StockID,
 			&position.StockName,
+			&position.CurrencyCode,
 			&position.Quantity,
 			&position.AvgBuyPrice,
 			&position.CurrentPrice,
@@ -215,6 +220,8 @@ func (s *Store) GetStockByID(stockID uuid.UUID) (*model.StockQuote, error) {
 			stock_id,
 			symbol,
 			name,
+			currency_code,
+			country,
 			series,
 			isin,
 			price,
@@ -245,6 +252,8 @@ func (s *Store) GetStockByID(stockID uuid.UUID) (*model.StockQuote, error) {
 		&quote.StockID,
 		&quote.Symbol,
 		&quote.Name,
+		&quote.CurrencyCode,
+		&quote.Country,
 		&quote.Series,
 		&isin,
 		&quote.Price,
@@ -330,6 +339,8 @@ func (s *Store) SearchStocks(query string) ([]model.StockQuote, error) {
 			stock_id,
 			symbol,
 			name,
+			currency_code,
+			country,
 			series,
 			isin,
 			price,
@@ -368,6 +379,8 @@ func (s *Store) SearchStocks(query string) ([]model.StockQuote, error) {
 			&quote.StockID,
 			&quote.Symbol,
 			&quote.Name,
+			&quote.CurrencyCode,
+			&quote.Country,
 			&quote.Series,
 			&isin,
 			&quote.Price,
@@ -598,6 +611,8 @@ func (s *Store) GetTopStocks(limit int) ([]model.StockQuote, error) {
 			stock_id,
 			symbol,
 			name,
+			currency_code,
+			country,
 			series,
 			isin,
 			price,
@@ -635,6 +650,8 @@ func (s *Store) GetTopStocks(limit int) ([]model.StockQuote, error) {
 			&quote.StockID,
 			&quote.Symbol,
 			&quote.Name,
+			&quote.CurrencyCode,
+			&quote.Country,
 			&quote.Series,
 			&isin,
 			&quote.Price,
@@ -716,6 +733,7 @@ func (s *Store) GetWatchlistByUser(userID uuid.UUID) ([]model.WatchlistItem, err
 			w.watchlist_name,
 			st.symbol,
 			st.name,
+			st.currency_code,
 			st.price,
 			(st.price - COALESCE(st.previous_close, st.price)) AS change,
 			CASE
@@ -742,6 +760,7 @@ func (s *Store) GetWatchlistByUser(userID uuid.UUID) ([]model.WatchlistItem, err
 			&item.WatchlistName,
 			&item.Symbol,
 			&item.Name,
+			&item.CurrencyCode,
 			&item.Price,
 			&item.Change,
 			&item.ChangePercent,

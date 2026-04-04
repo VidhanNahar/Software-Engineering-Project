@@ -269,7 +269,7 @@ export default function Portfolio() {
           <CardContent className="p-6">
             <p className="text-sm text-gray-300">Total Value</p>
             <p className="text-2xl font-bold text-white mt-1">
-              $
+              ₹
               {totalValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
             </p>
           </CardContent>
@@ -278,7 +278,7 @@ export default function Portfolio() {
           <CardContent className="p-6">
             <p className="text-sm text-gray-300">Buying Power</p>
             <p className="text-2xl font-bold text-white mt-1">
-              $
+              ₹
               {wallet.balance.toLocaleString("en-US", {
                 minimumFractionDigits: 2,
               })}
@@ -294,7 +294,7 @@ export default function Portfolio() {
                   totalGainLoss >= 0 ? "text-green-500" : "text-red-500"
                 }`}
               >
-                {totalGainLoss >= 0 ? "+" : ""}$
+                {totalGainLoss >= 0 ? "+" : ""}₹
                 {Math.abs(totalGainLoss).toLocaleString("en-US", {
                   minimumFractionDigits: 2,
                 })}
@@ -356,7 +356,7 @@ export default function Portfolio() {
                         </div>
                         <div className="text-right">
                           <p className="font-semibold text-white">
-                            $
+                            ₹
                             {holding.totalValue.toLocaleString("en-US", {
                               minimumFractionDigits: 2,
                             })}
@@ -368,7 +368,7 @@ export default function Portfolio() {
                                 : "text-red-500"
                             }`}
                           >
-                            {holding.totalGainLoss >= 0 ? "+" : ""}$
+                            {holding.totalGainLoss >= 0 ? "+" : ""}₹
                             {holding.totalGainLoss.toFixed(2)} (
                             {holding.gainLossPercent >= 0 ? "+" : ""}
                             {holding.gainLossPercent.toFixed(2)}%)
@@ -457,7 +457,7 @@ export default function Portfolio() {
                           name: string,
                           props: { payload: { percent: number } },
                         ) => [
-                          `$${value.toLocaleString("en-US", { minimumFractionDigits: 2 })} (${props.payload.percent.toFixed(1)}%)`,
+                          `₹${value.toLocaleString("en-US", { minimumFractionDigits: 2 })} (${props.payload.percent.toFixed(1)}%)`,
                           name,
                         ]}
                       />
@@ -507,13 +507,13 @@ export default function Portfolio() {
                       </div>
                       <div className="text-right">
                         <p className="font-semibold text-white">
-                          {trade.quantity} @ $
+                          {trade.quantity} @ ₹
                           {Number(
                             trade.price || trade.price_per_stock || 0,
                           ).toFixed(2)}
                         </p>
                         <p className="text-sm text-gray-300">
-                          $
+                          ₹
                           {(
                             trade.quantity *
                             Number(trade.price || trade.price_per_stock || 0)
