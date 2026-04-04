@@ -159,14 +159,14 @@ export default function MarketOverview() {
     allStocks.length > 0 ? (declining / allStocks.length) * 100 : 0;
 
   if (loading) {
-    return <div className="p-6 text-white">Loading market data...</div>;
+    return <div className="p-6">Loading market data...</div>;
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-white">Market Overview</h1>
-        <p className="text-gray-300 mt-1">
+        <h1 className="text-3xl font-bold">Market Overview</h1>
+        <p className="text-muted-foreground mt-1">
           Live market data from backend stream
         </p>
         <p
@@ -184,9 +184,9 @@ export default function MarketOverview() {
         {topByTradedValue.map((stock) => (
           <Card key={stock.symbol}>
             <CardContent className="p-6">
-              <p className="text-sm text-gray-300">{stock.symbol}</p>
-              <p className="text-xs text-gray-400 truncate">{stock.name}</p>
-              <p className="text-2xl font-bold text-white mt-1">
+              <p className="text-sm text-muted-foreground">{stock.symbol}</p>
+              <p className="text-xs text-muted-foreground/80 truncate">{stock.name}</p>
+              <p className="text-2xl font-bold mt-1">
                 ₹
                 {stock.price.toLocaleString("en-US", {
                   minimumFractionDigits: 2,
@@ -210,7 +210,7 @@ export default function MarketOverview() {
                   {stock.change_percent.toFixed(2)}%)
                 </span>
               </div>
-              <p className="mt-1 text-xs text-gray-400">
+              <p className="mt-1 text-xs text-muted-foreground">
                 Traded Value: {stock.total_traded_value.toLocaleString("en-US")}
               </p>
             </CardContent>
@@ -221,32 +221,32 @@ export default function MarketOverview() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Charts */}
         <div className="lg:col-span-2 space-y-6">
-          <Card className="text-white">
+          <Card>
             <CardHeader>
-              <CardTitle className="text-white">Top Movers (%)</CardTitle>
+              <CardTitle>Top Movers (%)</CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={moversData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="symbol" stroke="#6b7280" />
-                  <YAxis stroke="#6b7280" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="symbol" stroke="var(--muted-foreground)" />
+                  <YAxis stroke="var(--muted-foreground)" />
                   <Tooltip
                     cursor={{ fill: "transparent" }}
-                    itemStyle={{ color: "white" }}
-                    labelStyle={{ color: "white" }}
+                    itemStyle={{ color: "var(--foreground)" }}
+                    labelStyle={{ color: "var(--foreground)" }}
                     contentStyle={{
-                      backgroundColor: "#1f2937",
-                      border: "1px solid white",
-                      color: "white",
+                      backgroundColor: "var(--popover)",
+                      border: "1px solid var(--border)",
+                      color: "var(--foreground)",
                       borderRadius: "8px",
                     }}
                   />
                   <Bar
                     dataKey="change_percent"
                     radius={[8, 8, 0, 0]}
-                    activeBar={{ stroke: "white", strokeWidth: 2 }}
-                    fill="#3b82f6"
+                    activeBar={{ stroke: "var(--foreground)", strokeWidth: 2 }}
+                    fill="var(--primary)"
                   ></Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -254,48 +254,48 @@ export default function MarketOverview() {
           </Card>
 
           {/* Market Activity */}
-          <Card className="text-white">
+          <Card>
             <CardHeader>
-              <CardTitle className="text-white">Most Active Volume</CardTitle>
+              <CardTitle>Most Active Volume</CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={volumeData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="symbol" stroke="#6b7280" />
-                  <YAxis stroke="#6b7280" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="symbol" stroke="var(--muted-foreground)" />
+                  <YAxis stroke="var(--muted-foreground)" />
                   <Tooltip
                     cursor={{ fill: "transparent" }}
-                    itemStyle={{ color: "white" }}
-                    labelStyle={{ color: "white" }}
+                    itemStyle={{ color: "var(--foreground)" }}
+                    labelStyle={{ color: "var(--foreground)" }}
                     contentStyle={{
-                      backgroundColor: "#1f2937",
-                      border: "1px solid white",
-                      color: "white",
+                      backgroundColor: "var(--popover)",
+                      border: "1px solid var(--border)",
+                      color: "var(--foreground)",
                       borderRadius: "8px",
                     }}
                   />
                   <Bar
                     dataKey="volume"
-                    fill="#3b82f6"
+                    fill="var(--primary)"
                     radius={[8, 8, 0, 0]}
-                    activeBar={{ stroke: "white", strokeWidth: 2 }}
+                    activeBar={{ stroke: "var(--foreground)", strokeWidth: 2 }}
                   />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          <Card className="text-white">
+          <Card>
             <CardHeader>
-              <CardTitle className="text-white">Market Breadth</CardTitle>
+              <CardTitle>Market Breadth</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-300">
+                <span className="text-sm text-muted-foreground">
                   Advancing ({advancingPct.toFixed(0)}%)
                 </span>
-                <span className="text-sm text-gray-300">
+                <span className="text-sm text-muted-foreground">
                   Declining ({decliningPct.toFixed(0)}%)
                 </span>
               </div>
@@ -314,17 +314,17 @@ export default function MarketOverview() {
                   <p className="text-2xl font-bold text-green-500">
                     {advancing}
                   </p>
-                  <p className="text-sm text-gray-300">Issues Advancing</p>
+                  <p className="text-sm text-muted-foreground">Issues Advancing</p>
                 </div>
                 <div className="text-center">
                   <p className="text-2xl font-bold text-red-500">{declining}</p>
-                  <p className="text-sm text-gray-300">Issues Declining</p>
+                  <p className="text-sm text-muted-foreground">Issues Declining</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-gray-500">
+                  <p className="text-2xl font-bold text-muted-foreground">
                     {unchanged}
                   </p>
-                  <p className="text-sm text-gray-300">Unchanged</p>
+                  <p className="text-sm text-muted-foreground">Unchanged</p>
                 </div>
               </div>
             </CardContent>
@@ -345,23 +345,23 @@ export default function MarketOverview() {
             </TabsList>
 
             <TabsContent value="gainers">
-              <Card className="text-white">
+              <Card>
                 <CardContent className="pt-6">
                   <div className="space-y-4">
                     {gainers.map((stock) => (
                       <div
                         key={stock.symbol}
-                        className="flex items-center justify-between p-4 border border-transparent hover:border-white hover:bg-transparent rounded-lg cursor-pointer transition-colors"
+                        className="flex items-center justify-between p-4 border border-transparent hover:border-border hover:bg-accent/50 rounded-lg cursor-pointer transition-colors"
                         onClick={() => navigate(`/stock/${stock.symbol}`)}
                       >
                         <div>
-                          <p className="font-semibold text-white">
+                          <p className="font-semibold">
                             {stock.symbol}
                           </p>
-                          <p className="text-sm text-gray-300">{stock.name}</p>
+                          <p className="text-sm text-muted-foreground">{stock.name}</p>
                         </div>
                         <div className="text-right">
-                          <p className="font-semibold text-white">
+                          <p className="font-semibold">
                             ${stock.price.toFixed(2)}
                           </p>
                           <p className="text-sm text-green-500 flex items-center justify-end gap-1">
@@ -377,23 +377,23 @@ export default function MarketOverview() {
             </TabsContent>
 
             <TabsContent value="losers">
-              <Card className="text-white">
+              <Card>
                 <CardContent className="pt-6">
                   <div className="space-y-4">
                     {losers.map((stock) => (
                       <div
                         key={stock.symbol}
-                        className="flex items-center justify-between p-4 border border-transparent hover:border-white hover:bg-transparent rounded-lg cursor-pointer transition-colors"
+                        className="flex items-center justify-between p-4 border border-transparent hover:border-border hover:bg-accent/50 rounded-lg cursor-pointer transition-colors"
                         onClick={() => navigate(`/stock/${stock.symbol}`)}
                       >
                         <div>
-                          <p className="font-semibold text-white">
+                          <p className="font-semibold">
                             {stock.symbol}
                           </p>
-                          <p className="text-sm text-gray-300">{stock.name}</p>
+                          <p className="text-sm text-muted-foreground">{stock.name}</p>
                         </div>
                         <div className="text-right">
-                          <p className="font-semibold text-white">
+                          <p className="font-semibold">
                             ${stock.price.toFixed(2)}
                           </p>
                           <p className="text-sm text-red-500 flex items-center justify-end gap-1">
@@ -409,26 +409,26 @@ export default function MarketOverview() {
             </TabsContent>
 
             <TabsContent value="active">
-              <Card className="text-white">
+              <Card>
                 <CardContent className="pt-6">
                   <div className="space-y-4">
                     {mostActive.map((stock) => (
                       <div
                         key={stock.symbol}
-                        className="flex items-center justify-between p-4 border border-transparent hover:border-white hover:bg-transparent rounded-lg cursor-pointer transition-colors"
+                        className="flex items-center justify-between p-4 border border-transparent hover:border-border hover:bg-accent/50 rounded-lg cursor-pointer transition-colors"
                         onClick={() => navigate(`/stock/${stock.symbol}`)}
                       >
                         <div>
-                          <p className="font-semibold text-white">
+                          <p className="font-semibold">
                             {stock.symbol}
                           </p>
-                          <p className="text-sm text-gray-300">{stock.name}</p>
+                          <p className="text-sm text-muted-foreground">{stock.name}</p>
                         </div>
                         <div className="text-right">
-                          <p className="font-semibold text-white">
+                          <p className="font-semibold">
                             ${stock.price.toFixed(2)}
                           </p>
-                          <p className="text-sm text-gray-300">
+                          <p className="text-sm text-muted-foreground">
                             Volume: {stock.volume.toLocaleString()}
                           </p>
                         </div>

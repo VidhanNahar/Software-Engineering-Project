@@ -198,8 +198,8 @@ export default function StockDetails() {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center text-white">
-        <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
       </div>
     );
   }
@@ -207,20 +207,20 @@ export default function StockDetails() {
   if (!stock) {
     return (
       <div className="flex h-full flex-col items-center justify-center space-y-4">
-        <h2 className="text-2xl font-bold text-white">Stock not found</h2>
+        <h2 className="text-2xl font-bold">Stock not found</h2>
         <Button onClick={() => navigate("/market")}>Back to Market</Button>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 text-white">
+    <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
         <div>
           <Button
             variant="ghost"
             size="sm"
-            className="-ml-2 mb-4 text-gray-400 hover:bg-gray-800 hover:text-white"
+            className="-ml-2 mb-4 text-muted-foreground hover:bg-accent hover:text-foreground"
             onClick={() => navigate(-1)}
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -228,7 +228,7 @@ export default function StockDetails() {
           </Button>
 
           <div className="flex items-center gap-3">
-            <h1 className="text-4xl font-bold text-white">{stock.symbol}</h1>
+            <h1 className="text-4xl font-bold">{stock.symbol}</h1>
             <Button
               variant="ghost"
               size="icon"
@@ -236,8 +236,8 @@ export default function StockDetails() {
               disabled={watchlistLoading}
               className={
                 inWatchlist
-                  ? "text-yellow-500 hover:bg-gray-800 hover:text-yellow-400"
-                  : "text-gray-400 hover:bg-gray-800 hover:text-white"
+                  ? "text-yellow-500 hover:bg-accent hover:text-yellow-400"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
               }
             >
               {watchlistLoading ? (
@@ -249,11 +249,11 @@ export default function StockDetails() {
               )}
             </Button>
           </div>
-          <p className="mt-1 text-gray-300">{stock.name}</p>
+          <p className="mt-1 text-muted-foreground">{stock.name}</p>
         </div>
 
         <div className="text-right">
-          <p className="text-4xl font-bold text-white">
+          <p className="text-4xl font-bold">
             ${stock.price.toFixed(2)}
           </p>
           <div
@@ -277,9 +277,9 @@ export default function StockDetails() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
-          <Card className="bg-card text-white">
+          <Card>
             <CardHeader>
-              <CardTitle className="text-white">Live OHLCV Charts</CardTitle>
+              <CardTitle>Live OHLCV Charts</CardTitle>
             </CardHeader>
             <CardContent>
               <StockChartPanel
@@ -303,7 +303,7 @@ export default function StockDetails() {
         </div>
 
         <div className="space-y-6">
-          <Card className="bg-card text-white">
+          <Card>
             <CardContent className="p-6">
               <div className="space-y-4">
                 <Button
@@ -330,37 +330,37 @@ export default function StockDetails() {
             </CardContent>
           </Card>
 
-          <Card className="bg-card text-white">
+          <Card>
             <CardHeader>
-              <CardTitle className="text-white">Key Statistics</CardTitle>
+              <CardTitle>Key Statistics</CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-2 gap-4 text-sm">
               <div>
-                <p className="text-gray-400">Open</p>
+                <p className="text-muted-foreground">Open</p>
                 <p className="font-semibold">${stock.open.toFixed(2)}</p>
               </div>
               <div>
-                <p className="text-gray-400">High</p>
+                <p className="text-muted-foreground">High</p>
                 <p className="font-semibold">${stock.high.toFixed(2)}</p>
               </div>
               <div>
-                <p className="text-gray-400">Low</p>
+                <p className="text-muted-foreground">Low</p>
                 <p className="font-semibold">${stock.low.toFixed(2)}</p>
               </div>
               <div>
-                <p className="text-gray-400">Prev Close</p>
+                <p className="text-muted-foreground">Prev Close</p>
                 <p className="font-semibold">
                   ${stock.previous_close.toFixed(2)}
                 </p>
               </div>
               <div>
-                <p className="text-gray-400">Volume</p>
+                <p className="text-muted-foreground">Volume</p>
                 <p className="font-semibold">
                   {stock.quantity.toLocaleString()}
                 </p>
               </div>
               <div>
-                <p className="text-gray-400">Mkt Cap</p>
+                <p className="text-muted-foreground">Mkt Cap</p>
                 <p className="font-semibold">
                   ${(marketCap / 1_000_000_000).toFixed(2)}B
                 </p>

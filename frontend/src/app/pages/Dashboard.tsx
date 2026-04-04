@@ -293,7 +293,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -311,35 +311,35 @@ export default function Dashboard() {
     totalInvested > 0 ? (totalGainLoss / totalInvested) * 100 : 0;
 
   return (
-    <div className="space-y-6 text-white">
+    <div className="space-y-6">
       {/* ── Add to Watchlist Dialog ── */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent className="max-w-md bg-gray-900 border-gray-700 text-white">
+        <DialogContent className="max-w-md bg-card border-border">
           <DialogHeader>
-            <DialogTitle className="text-white text-lg">
+            <DialogTitle className="text-lg">
               Add Stock to Watchlist
             </DialogTitle>
           </DialogHeader>
 
           <div className="relative mt-2">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               autoFocus
               placeholder="Search by symbol or name…"
               value={stockSearch}
               onChange={(e) => setStockSearch(e.target.value)}
-              className="pl-9 bg-gray-800 border-gray-600 text-white placeholder-gray-500 focus:border-blue-500"
+              className="pl-9 bg-input-background border-border"
             />
           </div>
 
           <div className="mt-3 max-h-72 overflow-y-auto space-y-1 pr-1">
             {allStocks.length === 0 ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-5 h-5 animate-spin text-blue-400 mr-2" />
-                <span className="text-gray-400 text-sm">Loading stocks…</span>
+                <Loader2 className="w-5 h-5 animate-spin text-primary mr-2" />
+                <span className="text-muted-foreground text-sm">Loading stocks…</span>
               </div>
             ) : filteredStocks.length === 0 ? (
-              <p className="text-center text-gray-400 text-sm py-8">
+              <p className="text-center text-muted-foreground text-sm py-8">
                 {stockSearch
                   ? `No results for "${stockSearch}"`
                   : "All available stocks are already in your watchlist."}
@@ -350,24 +350,24 @@ export default function Dashboard() {
                   key={stock.stock_id}
                   disabled={addingStockId === stock.stock_id}
                   onClick={() => handleAddToWatchlist(stock)}
-                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-60 text-left group"
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-accent transition-colors disabled:opacity-60 text-left group"
                 >
                   <div>
-                    <p className="font-semibold text-white text-sm">
+                    <p className="font-semibold text-sm">
                       {stock.symbol}
                     </p>
-                    <p className="text-xs text-gray-400 truncate max-w-[220px]">
+                    <p className="text-xs text-muted-foreground truncate max-w-[220px]">
                       {stock.name}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-300">
+                    <span className="text-sm">
                       ${stock.price.toFixed(2)}
                     </span>
                     {addingStockId === stock.stock_id ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                      <Loader2 className="w-4 h-4 animate-spin text-primary" />
                     ) : (
-                      <CheckCircle2 className="w-4 h-4 text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <CheckCircle2 className="w-4 h-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
                     )}
                   </div>
                 </button>
@@ -379,18 +379,18 @@ export default function Dashboard() {
 
       {/* ── Page Header ── */}
       <div>
-        <h1 className="text-3xl font-bold text-white">Dashboard</h1>
-        <p className="text-gray-300 mt-1">
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <p className="text-muted-foreground mt-1">
           Welcome back. Here's your trading overview.
         </p>
       </div>
 
       {/* ── Summary Cards ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="text-white">
+        <Card>
           <CardContent className="p-6">
-            <p className="text-sm text-gray-300">Wallet Balance</p>
-            <p className="text-2xl font-bold text-white mt-1">
+            <p className="text-sm text-muted-foreground">Wallet Balance</p>
+            <p className="text-2xl font-bold mt-1">
               ₹
               {wallet.balance.toLocaleString("en-US", {
                 minimumFractionDigits: 2,
@@ -398,10 +398,10 @@ export default function Dashboard() {
             </p>
           </CardContent>
         </Card>
-        <Card className="text-white">
+        <Card>
           <CardContent className="p-6">
-            <p className="text-sm text-gray-300">Total Portfolio Value</p>
-            <p className="text-2xl font-bold text-white mt-1">
+            <p className="text-sm text-muted-foreground">Total Portfolio Value</p>
+            <p className="text-2xl font-bold mt-1">
               ₹
               {totalValue.toLocaleString("en-US", {
                 minimumFractionDigits: 2,
@@ -409,9 +409,9 @@ export default function Dashboard() {
             </p>
           </CardContent>
         </Card>
-        <Card className="text-white">
+        <Card>
           <CardContent className="p-6">
-            <p className="text-sm text-gray-300">Today's Return</p>
+            <p className="text-sm text-muted-foreground">Today's Return</p>
             <p
               className={`text-2xl font-bold mt-1 ${
                 totalGainLoss >= 0 ? "text-green-500" : "text-red-500"
@@ -434,17 +434,16 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Portfolio */}
         <div className="lg:col-span-2 space-y-6">
-          <Card className="text-white">
+          <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="text-white">Your Portfolio</CardTitle>
-                <p className="text-sm text-gray-300 mt-1">
+                <CardTitle>Your Portfolio</CardTitle>
+                <p className="text-sm text-muted-foreground mt-1">
                   Your investment performance
                 </p>
               </div>
               <Button
                 variant="outline"
-                className="text-gray-900 dark:text-white"
                 onClick={() => navigate("/portfolio")}
               >
                 View All
@@ -453,10 +452,10 @@ export default function Dashboard() {
             <CardContent>
               {portfolio.length === 0 ? (
                 <div className="text-center py-8">
-                  <TrendingUp className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-                  <p className="text-gray-300">Your portfolio is empty.</p>
+                  <TrendingUp className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground">Your portfolio is empty.</p>
                   <Button
-                    className="mt-4 bg-blue-600 hover:bg-blue-700 text-white"
+                    className="mt-4"
                     onClick={() => navigate("/market")}
                   >
                     Explore Market
@@ -467,19 +466,19 @@ export default function Dashboard() {
                   {portfolio.slice(0, 3).map((holding, index) => (
                     <div
                       key={index}
-                      className="flex items-center justify-between p-4 border border-transparent hover:border-white rounded-lg transition-colors cursor-pointer"
+                      className="flex items-center justify-between p-4 border border-transparent hover:border-border hover:bg-accent/50 rounded-lg transition-colors cursor-pointer"
                       onClick={() => navigate(`/stock/${holding.symbol}`)}
                     >
                       <div>
-                        <p className="font-semibold text-white">
+                        <p className="font-semibold">
                           {holding.symbol}
                         </p>
-                        <p className="text-sm text-gray-300">
+                        <p className="text-sm text-muted-foreground">
                           {holding.quantity} Shares
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="font-semibold text-white">
+                        <p className="font-semibold">
                           ₹
                           {(
                             holding.quantity * holding.currentPrice
@@ -508,13 +507,12 @@ export default function Dashboard() {
 
         {/* Watchlist */}
         <div>
-          <Card className="text-white">
+          <Card>
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-white">Watchlist</CardTitle>
+              <CardTitle>Watchlist</CardTitle>
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-white hover:bg-gray-800"
                 title="Add stock to watchlist"
                 onClick={openAddDialog}
               >
@@ -524,13 +522,13 @@ export default function Dashboard() {
             <CardContent>
               {watchlist.length === 0 ? (
                 <div className="text-center py-8">
-                  <Star className="w-10 h-10 text-gray-600 mx-auto mb-2" />
-                  <p className="text-gray-400 text-sm">
+                  <Star className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-muted-foreground text-sm">
                     No stocks in your watchlist yet.
                   </p>
                   <Button
                     variant="ghost"
-                    className="mt-2 text-blue-400 hover:text-blue-300 text-sm"
+                    className="mt-2 text-primary hover:text-primary/80 text-sm"
                     onClick={openAddDialog}
                   >
                     Add your first stock
@@ -541,14 +539,14 @@ export default function Dashboard() {
                   {watchlist.map((stock) => (
                     <div
                       key={stock.symbol}
-                      className="flex items-center justify-between p-3 border border-transparent hover:border-white rounded-lg cursor-pointer transition-colors"
+                      className="flex items-center justify-between p-3 border border-transparent hover:border-border hover:bg-accent/50 rounded-lg cursor-pointer transition-colors"
                       onClick={() => navigate(`/stock/${stock.symbol}`)}
                     >
                       <div className="flex items-center gap-3">
                         <Star
                           className={`w-4 h-4 flex-shrink-0 ${
                             stock.isSuggested
-                              ? "text-gray-500"
+                              ? "text-muted-foreground"
                               : "text-yellow-500 fill-yellow-500"
                           }`}
                           onClick={async (e) => {
@@ -580,16 +578,16 @@ export default function Dashboard() {
                           }}
                         />
                         <div>
-                          <p className="font-semibold text-white">
+                          <p className="font-semibold">
                             {stock.symbol}
                           </p>
-                          <p className="text-xs text-gray-300">
+                          <p className="text-xs text-muted-foreground">
                             {stock.isSuggested ? "Suggested" : stock.name}
                           </p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-semibold text-white">
+                        <p className="font-semibold">
                           ${stock.price?.toFixed(2) ?? "—"}
                         </p>
                         <div
