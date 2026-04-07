@@ -155,10 +155,8 @@ export default function StockDetails() {
             // Update stock price in header if this is our symbol
             if (stock && (payload.stocks || payload.ticks)) {
               const stocksArray = payload.stocks || payload.ticks;
-              const updatedStock = stocksArray?.find(
-                (s: any) =>
-                  (s.symbol || s.Symbol || "").toUpperCase() ===
-                  stock.symbol.toUpperCase(),
+              const updatedStock = stocksArray?.find((s: any) =>
+                (s.symbol || s.Symbol || "").toUpperCase() === stock.symbol.toUpperCase(),
               );
 
               if (updatedStock && typeof updatedStock.price === "number") {
@@ -293,9 +291,7 @@ export default function StockDetails() {
         </div>
 
         <div className="text-right">
-          <p className="text-4xl font-bold">
-            {formatPrice(stock.price)}
-          </p>
+          <p className="text-4xl font-bold">{formatPrice(stock.price)}</p>
           <div
             className={`mt-1 flex items-center justify-end gap-2 text-lg font-semibold ${
               stock.change >= 0 ? "text-green-500" : "text-red-500"
@@ -337,7 +333,8 @@ export default function StockDetails() {
                 selectedSymbol={selectedSymbol}
                 onSymbolChange={onSelectSymbol}
                 basePrice={stock.price}
-                />            </CardContent>
+              />{" "}
+            </CardContent>
           </Card>
         </div>
 

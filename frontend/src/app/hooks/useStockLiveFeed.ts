@@ -16,18 +16,29 @@ function websocketUrl(): string {
   return `${protocol}://${backendUrl}/ws/stocks`;
 }
 
-export function useStockLiveFeed(selectedSymbol: string, basePrice: number, timeframe: Timeframe): LiveFeedState {
-  const [candles, setCandles] = useState<CandlePoint[]>(() => generateMockOHLCV(basePrice, timeframe));
+export function useStockLiveFeed(
+  selectedSymbol: string,
+  basePrice: number,
+  timeframe: Timeframe,
+): LiveFeedState {
+  const [candles, setCandles] = useState<CandlePoint[]>(() =>
+    generateMockOHLCV(basePrice, timeframe),
+  );
   const [price, setPrice] = useState<number>(basePrice);
   const [connected, setConnected] = useState<boolean>(false);
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | undefined>(undefined);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | undefined>(
+    undefined,
+  );
   const [marketOpen, setMarketOpen] = useState<boolean>(true);
   const wsRef = useRef<WebSocket | null>(null);
   const isComponentMountedRef = useRef<boolean>(true);
   const intentionalCloseRef = useRef<boolean>(false);
   const reconnectTimeoutRef = useRef<number | null>(null);
 
-  const normalizedSymbol = useMemo(() => selectedSymbol.toUpperCase(), [selectedSymbol]);
+  const normalizedSymbol = useMemo(
+    () => selectedSymbol.toUpperCase(),
+    [selectedSymbol],
+  );
 
   useEffect(() => {
     setCandles(generateMockOHLCV(basePrice, timeframe));
@@ -94,47 +105,51 @@ export function useStockLiveFeed(selectedSymbol: string, basePrice: number, time
           if (!isComponentMountedRef.current) return;
 
           try {
-            const payload = JSON.parse(event.data) as { 
-              stocks?: SnapshotStock[]; 
+            const payload = JSON.parse(event.data) as {
+              stocks?: SnapshotStock[];
               ticks?: SnapshotStock[];
               market_open?: boolean;
               type?: string;
             };
-            
+
             if (typeof payload.market_open === "boolean") {
               setMarketOpen(payload.market_open);
             }
-            
+
             // Handle both "stocks_snapshot" (stocks array) and "stock_tick" (ticks array)
             const stocksArray = payload.stocks || payload.ticks;
-            
+
             if (!stocksArray || stocksArray.length === 0) {
-              console.debug("📡 WebSocket message received but no stocks/ticks data");
+              console.debug(
+                "📡 WebSocket message received but no stocks/ticks data",
+              );
               return;
             }
-            
+
             const target = stocksArray.find((s) => {
               const symbol = (s.symbol || "").toUpperCase();
               return symbol === normalizedSymbol;
             });
-            
+
             if (!target) {
               console.debug(`📡 No data for ${normalizedSymbol} in message`);
               return;
             }
-            
+
             const priceValue = target.price || (target as any).Price;
-            
+
             if (typeof priceValue !== "number") {
-              console.debug(`⚠️ Invalid price for ${normalizedSymbol}: ${priceValue}`);
+              console.debug(
+                `⚠️ Invalid price for ${normalizedSymbol}: ${priceValue}`,
+              );
               return;
             }
-            
+
             if (payload.market_open === false) {
               console.debug("📡 Market closed, ignoring price update");
               return;
             }
-            
+
             console.debug(`💰 ${normalizedSymbol}: ₹${priceValue}`);
             handleLivePrice(priceValue);
           } catch (e) {

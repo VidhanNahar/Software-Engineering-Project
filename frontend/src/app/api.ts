@@ -1,6 +1,7 @@
-export const API_URL = "/api";
-export const AUTH_API_URL = "/auth";
+const BASE_URL = import.meta.env.VITE_API_URL || "http://20.193.252.172:8080";
 
+export const API_URL = `${BASE_URL}/api`;
+export const AUTH_API_URL = `${BASE_URL}/auth`;
 export const getAuthHeaders = () => {
   const token = localStorage.getItem("access_token");
   return {

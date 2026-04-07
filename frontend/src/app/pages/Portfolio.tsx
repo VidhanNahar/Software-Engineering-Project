@@ -207,7 +207,7 @@ export default function Portfolio() {
             setHoldings((prev) =>
               prev.map((holding) => {
                 const updated = incomingStocks.find(
-                  (s: Record<string, unknown>) => s.symbol === holding.symbol
+                  (s: Record<string, unknown>) => s.symbol === holding.symbol,
                 );
                 if (updated && typeof updated.price === "number") {
                   const newPrice = updated.price;
@@ -222,13 +222,14 @@ export default function Portfolio() {
                     totalGainLoss: newTotalGainLoss,
                     gainLossPercent:
                       holding.quantity * holding.avgPrice > 0
-                        ? (newTotalGainLoss / (holding.quantity * holding.avgPrice)) *
+                        ? (newTotalGainLoss /
+                            (holding.quantity * holding.avgPrice)) *
                           100
                         : 0,
                   };
                 }
                 return holding;
-              })
+              }),
             );
           }
         } catch (e) {
@@ -302,15 +303,11 @@ export default function Portfolio() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-          >
+          <Button variant="outline">
             <Filter className="w-4 h-4 mr-2" />
             Filter
           </Button>
-          <Button
-            variant="outline"
-          >
+          <Button variant="outline">
             <Download className="w-4 h-4 mr-2" />
             Export
           </Button>
@@ -321,9 +318,7 @@ export default function Portfolio() {
         <Card>
           <CardContent className="p-6">
             <p className="text-sm text-muted-foreground">Total Value</p>
-            <p className="text-2xl font-bold mt-1">
-              {formatPrice(totalValue)}
-            </p>
+            <p className="text-2xl font-bold mt-1">{formatPrice(totalValue)}</p>
           </CardContent>
         </Card>
         <Card>
@@ -376,11 +371,10 @@ export default function Portfolio() {
               {holdings.length === 0 ? (
                 <div className="text-center py-12">
                   <TrendingUp className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-muted-foreground">You don't own any stocks yet.</p>
-                  <Button
-                    className="mt-4"
-                    onClick={() => navigate("/market")}
-                  >
+                  <p className="text-muted-foreground">
+                    You don't own any stocks yet.
+                  </p>
+                  <Button className="mt-4" onClick={() => navigate("/market")}>
                     Start Trading
                   </Button>
                 </div>
@@ -422,24 +416,28 @@ export default function Portfolio() {
                       <div className="grid grid-cols-4 gap-4 text-sm mt-4 pt-4 border-t border-border">
                         <div>
                           <p className="text-muted-foreground mb-1">Quantity</p>
-                          <p className="font-medium">
-                            {holding.quantity}
-                          </p>
+                          <p className="font-medium">{holding.quantity}</p>
                         </div>
                         <div>
-                          <p className="text-muted-foreground mb-1">Avg Price</p>
+                          <p className="text-muted-foreground mb-1">
+                            Avg Price
+                          </p>
                           <p className="font-medium">
                             {formatPrice(holding.avgPrice)}
                           </p>
                         </div>
                         <div>
-                          <p className="text-muted-foreground mb-1">Current Price</p>
+                          <p className="text-muted-foreground mb-1">
+                            Current Price
+                          </p>
                           <p className="font-medium">
                             {formatPrice(holding.currentPrice)}
                           </p>
                         </div>
                         <div>
-                          <p className="text-muted-foreground mb-1">Portfolio %</p>
+                          <p className="text-muted-foreground mb-1">
+                            Portfolio %
+                          </p>
                           <p className="font-medium">
                             {(
                               (holding.totalValue / totalValue) * 100 || 0
@@ -496,10 +494,20 @@ export default function Portfolio() {
                           color: "var(--foreground)",
                           borderRadius: "8px",
                         }}
-                        formatter={(value: any, name: any, props: any) => [
-                          `${formatPrice(value)} (${props.payload?.percent?.toFixed(1)}%)`,
-                          name,
-                        ]}
+                        formatter={(
+                          value: number,
+                          name: string,
+                          rawProps: unknown,
+                        ) => {
+                          const props = rawProps as {
+                            payload?: { percent?: number };
+                          };
+                          const percent = props?.payload?.percent || 0;
+                          return [
+                            `${formatPrice(value)} (${percent.toFixed(1)}%)`,
+                            name,
+                          ];
+                        }}
                       />
                     </PieChart>
                   </ResponsiveContainer>
@@ -547,12 +555,15 @@ export default function Portfolio() {
                       </div>
                       <div className="text-right">
                         <p className="font-semibold">
-                          {trade.quantity} @ {formatPrice(Number(trade.price || trade.price_per_stock || 0))}
+                          {trade.quantity} @{" "}
+                          {formatPrice(
+                            Number(trade.price || trade.price_per_stock || 0),
+                          )}
                         </p>
                         <p className="text-sm text-muted-foreground">
                           {formatPrice(
                             trade.quantity *
-                            Number(trade.price || trade.price_per_stock || 0)
+                              Number(trade.price || trade.price_per_stock || 0),
                           )}
                         </p>
                       </div>
