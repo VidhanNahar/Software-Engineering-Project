@@ -131,6 +131,9 @@ export default function Login() {
         if (response.name) {
           localStorage.setItem("user_name", response.name);
         }
+        if (response.is_kyc_verified !== undefined) {
+          localStorage.setItem("is_kyc_verified", String(response.is_kyc_verified));
+        }
 
         toast.success("Login successful!");
         navigate("/");

@@ -7,3 +7,7 @@ export const isAuthenticated = () => {
 export const isAdmin = () => {
   return localStorage.getItem("user_role") === "admin";
 };
+
+export const isKycVerified = () => {
+  return localStorage.getItem("is_kyc_verified") === "true";
+};

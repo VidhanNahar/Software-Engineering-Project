@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatPrice } from "../utils/currency";
+import { isKycVerified } from "../utils/auth";
 import { stockApi, watchlistApi } from "../api";
 import { Button } from "../components/ui/button";
 import {
@@ -308,21 +309,31 @@ export default function StockDetails() {
               <div className="space-y-4">
                 <Button
                   className="h-14 w-full bg-green-600 text-lg font-bold text-white shadow-lg hover:bg-green-700"
-                  onClick={() =>
+                  onClick={() => {
+                    if (!isKycVerified()) {
+                      toast.error("KYC verification required to trade");
+                      navigate("/profile");
+                      return;
+                    }
                     navigate("/trade", {
                       state: { symbol: stock.symbol, type: "buy" },
-                    })
-                  }
+                    });
+                  }}
                 >
                   Buy {stock.symbol}
                 </Button>
                 <Button
                   className="h-14 w-full bg-red-600 text-lg font-bold text-white shadow-lg hover:bg-red-700"
-                  onClick={() =>
+                  onClick={() => {
+                    if (!isKycVerified()) {
+                      toast.error("KYC verification required to trade");
+                      navigate("/profile");
+                      return;
+                    }
                     navigate("/trade", {
                       state: { symbol: stock.symbol, type: "sell" },
-                    })
-                  }
+                    });
+                  }}
                 >
                   Sell {stock.symbol}
                 </Button>

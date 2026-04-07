@@ -90,6 +90,9 @@ export default function Profile() {
       if (res.user?.role) {
         localStorage.setItem("user_role", res.user.role);
       }
+      if (res.user?.is_kyc_verified !== undefined) {
+        localStorage.setItem("is_kyc_verified", String(res.user.is_kyc_verified));
+      }
       await fetchProfile();
     } catch (error: unknown) {
       toast.error(

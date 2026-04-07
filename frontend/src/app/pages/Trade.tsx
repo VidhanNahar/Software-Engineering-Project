@@ -32,11 +32,13 @@ import {
 import { TrendingUp, TrendingDown, AlertCircle, Loader2, CheckCircle2 } from "lucide-react";
 import { formatPrice } from "../utils/currency";
 import { toast } from "sonner";
+import { isKycVerified } from "../utils/auth";
 import { stockApi, transactionApi, walletApi, portfolioApi } from "../api";
 
 export default function Trade() {
   const location = useLocation();
   const navigate = useNavigate();
+  const kycStatus = isKycVerified();
   const state = location.state as {
     symbol?: string;
     type?: "buy" | "sell";
@@ -191,6 +193,12 @@ export default function Trade() {
       }
     }
 
+    if (!kycStatus) {
+      toast.error("KYC verification required for trading");
+      navigate("/profile");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const payload = {
@@ -259,6 +267,32 @@ export default function Trade() {
         <h1 className="text-3xl font-bold">Trade</h1>
         <p className="text-muted-foreground mt-1">Place buy or sell orders</p>
       </div>
+
+      {!kycStatus && (
+        <Card className="bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800">
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="bg-amber-100 dark:bg-amber-900/30 p-2 rounded-full">
+              <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-amber-900 dark:text-amber-200">
+                KYC Verification Required
+              </p>
+              <p className="text-sm text-amber-700 dark:text-amber-400">
+                You must complete your identity verification to start trading.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/50"
+              onClick={() => navigate("/profile")}
+            >
+              Complete KYC
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
