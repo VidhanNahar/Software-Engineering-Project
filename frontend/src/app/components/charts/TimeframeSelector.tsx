@@ -18,7 +18,7 @@ export function TimeframeSelector({ value, onChange }: Props) {
           className={`rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors ${
             value === tf
               ? "border-blue-500 bg-blue-600 text-white"
-              : "border-gray-700 bg-gray-900 text-gray-300 hover:border-blue-500 hover:text-white"
+              : "border-border bg-card text-muted-foreground hover:border-blue-500 hover:text-foreground"
           }`}
         >
           {tf}

@@ -111,6 +111,8 @@ func main() {
 	r.HandleFunc("/auth/verify", u.VerifyEmail).Methods("POST")
 	r.HandleFunc("/auth/refresh", u.RefreshToken).Methods("POST")
 	r.HandleFunc("/auth/logout", u.Logout).Methods("POST")
+	r.HandleFunc("/auth/forgot-password", u.ForgotPassword).Methods("POST")
+	r.HandleFunc("/auth/reset-password", u.ResetPassword).Methods("POST")
 	r.HandleFunc("/stocks", t.GetStocks).Methods("GET")
 	r.HandleFunc("/api/stocks", t.GetStocks).Methods("GET")
 	r.HandleFunc("/api/stocks/search", t.SearchStocks).Methods("GET")

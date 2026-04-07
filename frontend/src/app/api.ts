@@ -85,6 +85,16 @@ export const authApi = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  forgotPassword: (email: string) =>
+    request(AUTH_API_URL, "/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email_id: email }),
+    }),
+  resetPassword: (data: any) =>
+    request(AUTH_API_URL, "/reset-password", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 };
 
 export const stockApi = {

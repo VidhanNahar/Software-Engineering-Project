@@ -7,6 +7,7 @@ import {
   Tooltip,
 } from "chart.js";
 import { Bar } from "react-chartjs-2";
+import { useTheme } from "../../context/ThemeContext";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
@@ -21,6 +22,12 @@ type Props = {
 };
 
 export function VolumeBarChart({ data }: Props) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  
+  const textColor = isDark ? "#94a3b8" : "#64748b";
+  const gridColor = isDark ? "rgba(51, 65, 85, 0.25)" : "rgba(0, 0, 0, 0.05)";
+
   const chartData = {
     labels: data.map((d) => d.label),
     datasets: [
@@ -48,13 +55,16 @@ export function VolumeBarChart({ data }: Props) {
           },
         },
         scales: {
-          x: { ticks: { color: "#94a3b8", maxTicksLimit: 7 }, grid: { display: false } },
+          x: { 
+            ticks: { color: textColor, maxTicksLimit: 7 }, 
+            grid: { display: false } 
+          },
           y: {
             ticks: {
-              color: "#94a3b8",
+              color: textColor,
               callback: (value) => Number(value).toLocaleString(),
             },
-            grid: { color: "rgba(51, 65, 85, 0.25)" },
+            grid: { color: gridColor },
           },
         },
       }}

@@ -13,6 +13,7 @@ import {
   TabsTrigger,
 } from "../components/ui/tabs";
 import { ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { formatPrice } from "../utils/currency";
 import {
   BarChart,
   Bar,
@@ -42,14 +43,16 @@ function toNumber(value: unknown): number {
 
 function normalizeStocks(
   rawStocks: {
+    stock_id?: string;
     symbol: string;
     name: string;
     price: number;
-    quantity: number;
+    quantity?: number;
     volume?: number;
     change?: number;
     changePercent?: number;
     change_percent?: number;
+    total_traded_value?: number;
   }[] = [],
 ): MarketStock[] {
   return rawStocks.map((s) => ({
@@ -58,7 +61,7 @@ function normalizeStocks(
     name: String(s.name || ""),
     price: toNumber(s.price),
     change: toNumber(s.change),
-    change_percent: toNumber(s.change_percent),
+    change_percent: toNumber(s.change_percent ?? s.changePercent),
     volume: toNumber(s.volume),
     total_traded_value: toNumber(s.total_traded_value),
   }));
@@ -187,11 +190,7 @@ export default function MarketOverview() {
               <p className="text-sm text-muted-foreground">{stock.symbol}</p>
               <p className="text-xs text-muted-foreground/80 truncate">{stock.name}</p>
               <p className="text-2xl font-bold mt-1">
-                ₹
-                {stock.price.toLocaleString("en-US", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
+                {formatPrice(stock.price)}
               </p>
               <div
                 className={`flex items-center gap-1 mt-1 ${
@@ -362,7 +361,7 @@ export default function MarketOverview() {
                         </div>
                         <div className="text-right">
                           <p className="font-semibold">
-                            ${stock.price.toFixed(2)}
+                            {formatPrice(stock.price)}
                           </p>
                           <p className="text-sm text-green-500 flex items-center justify-end gap-1">
                             <ArrowUpRight className="w-4 h-4" />
@@ -394,7 +393,7 @@ export default function MarketOverview() {
                         </div>
                         <div className="text-right">
                           <p className="font-semibold">
-                            ${stock.price.toFixed(2)}
+                            {formatPrice(stock.price)}
                           </p>
                           <p className="text-sm text-red-500 flex items-center justify-end gap-1">
                             <ArrowDownRight className="w-4 h-4" />
@@ -426,7 +425,7 @@ export default function MarketOverview() {
                         </div>
                         <div className="text-right">
                           <p className="font-semibold">
-                            ${stock.price.toFixed(2)}
+                            {formatPrice(stock.price)}
                           </p>
                           <p className="text-sm text-muted-foreground">
                             Volume: {stock.volume.toLocaleString()}

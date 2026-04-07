@@ -459,14 +459,16 @@ func (s *Store) AdminCreateStock(req model.AdminStockUpsertRequest) error {
 	ctx := context.Background()
 	_, err := s.db.Exec(`
 		INSERT INTO stock (
-			symbol, name, series, isin, price, previous_close, open_price, day_high, day_low, close_price,
+			symbol, name, currency_code, country, series, isin, price, previous_close, open_price, day_high, day_low, close_price,
 			last_traded_price, total_traded_qty, total_trades, total_traded_value, quantity, trade_date, timestamp
 		) VALUES (
-			UPPER($1), $2, UPPER($3), NULLIF($4, ''), $5, $6, $7, $8, $9, $10,
+			UPPER($1), $2, 'INR', 'India', UPPER($3), NULLIF($4, ''), $5, $6, $7, $8, $9, $10,
 			$11, $12, $13, $14, $15, CURRENT_DATE, NOW()
 		)
 		ON CONFLICT (symbol) DO UPDATE SET
 			name = EXCLUDED.name,
+			currency_code = 'INR',
+			country = 'India',
 			series = EXCLUDED.series,
 			isin = EXCLUDED.isin,
 			price = EXCLUDED.price,
@@ -513,6 +515,8 @@ func (s *Store) AdminUpdateStock(stockID uuid.UUID, req model.AdminStockUpsertRe
 		UPDATE stock
 		SET symbol = UPPER($1),
 			name = $2,
+			currency_code = 'INR',
+			country = 'India',
 			series = UPPER($3),
 			isin = NULLIF($4, ''),
 			price = $5,

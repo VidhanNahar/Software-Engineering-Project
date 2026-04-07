@@ -25,6 +25,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { formatPrice } from "../utils/currency";
 import { portfolioApi, watchlistApi, stockApi, walletApi } from "../api";
 
 interface WatchlistItem {
@@ -362,7 +363,7 @@ export default function Dashboard() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm">
-                      ${stock.price.toFixed(2)}
+                      {formatPrice(stock.price)}
                     </span>
                     {addingStockId === stock.stock_id ? (
                       <Loader2 className="w-4 h-4 animate-spin text-primary" />
@@ -391,10 +392,7 @@ export default function Dashboard() {
           <CardContent className="p-6">
             <p className="text-sm text-muted-foreground">Wallet Balance</p>
             <p className="text-2xl font-bold mt-1">
-              ₹
-              {wallet.balance.toLocaleString("en-US", {
-                minimumFractionDigits: 2,
-              })}
+              {formatPrice(wallet.balance)}
             </p>
           </CardContent>
         </Card>
@@ -402,10 +400,7 @@ export default function Dashboard() {
           <CardContent className="p-6">
             <p className="text-sm text-muted-foreground">Total Portfolio Value</p>
             <p className="text-2xl font-bold mt-1">
-              ₹
-              {totalValue.toLocaleString("en-US", {
-                minimumFractionDigits: 2,
-              })}
+              {formatPrice(totalValue)}
             </p>
           </CardContent>
         </Card>
@@ -417,10 +412,7 @@ export default function Dashboard() {
                 totalGainLoss >= 0 ? "text-green-500" : "text-red-500"
               }`}
             >
-              {totalGainLoss >= 0 ? "+" : ""}₹
-              {totalGainLoss.toLocaleString("en-US", {
-                minimumFractionDigits: 2,
-              })}
+              {totalGainLoss >= 0 ? "+" : ""}{formatPrice(totalGainLoss)}
               <span className="text-sm ml-2">
                 ({returnPercent >= 0 ? "+" : ""}
                 {returnPercent.toFixed(2)}%)
@@ -479,12 +471,7 @@ export default function Dashboard() {
                       </div>
                       <div className="text-right">
                         <p className="font-semibold">
-                          ₹
-                          {(
-                            holding.quantity * holding.currentPrice
-                          ).toLocaleString("en-US", {
-                            minimumFractionDigits: 2,
-                          })}
+                          {formatPrice(holding.quantity * holding.currentPrice)}
                         </p>
                         <p
                           className={`text-sm ${
@@ -493,8 +480,7 @@ export default function Dashboard() {
                               : "text-red-500"
                           }`}
                         >
-                          {holding.totalGainLoss >= 0 ? "+" : ""}₹
-                          {holding.totalGainLoss.toFixed(2)}
+                          {holding.totalGainLoss >= 0 ? "+" : ""}{formatPrice(holding.totalGainLoss)}
                         </p>
                       </div>
                     </div>
@@ -588,7 +574,7 @@ export default function Dashboard() {
                       </div>
                       <div className="text-right">
                         <p className="font-semibold">
-                          ${stock.price?.toFixed(2) ?? "—"}
+                          {formatPrice(stock.price)}
                         </p>
                         <div
                           className={`flex items-center gap-1 text-xs ${

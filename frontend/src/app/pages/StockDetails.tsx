@@ -8,6 +8,7 @@ import {
   Star,
 } from "lucide-react";
 import { toast } from "sonner";
+import { formatPrice } from "../utils/currency";
 import { stockApi, watchlistApi } from "../api";
 import { Button } from "../components/ui/button";
 import {
@@ -254,7 +255,7 @@ export default function StockDetails() {
 
         <div className="text-right">
           <p className="text-4xl font-bold">
-            ${stock.price.toFixed(2)}
+            {formatPrice(stock.price)}
           </p>
           <div
             className={`mt-1 flex items-center justify-end gap-2 text-lg font-semibold ${
@@ -297,8 +298,7 @@ export default function StockDetails() {
                 selectedSymbol={selectedSymbol}
                 onSymbolChange={onSelectSymbol}
                 basePrice={stock.price}
-              />
-            </CardContent>
+                />            </CardContent>
           </Card>
         </div>
 
@@ -337,20 +337,20 @@ export default function StockDetails() {
             <CardContent className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <p className="text-muted-foreground">Open</p>
-                <p className="font-semibold">${stock.open.toFixed(2)}</p>
+                <p className="font-semibold">{formatPrice(stock.open)}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">High</p>
-                <p className="font-semibold">${stock.high.toFixed(2)}</p>
+                <p className="font-semibold">{formatPrice(stock.high)}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">Low</p>
-                <p className="font-semibold">${stock.low.toFixed(2)}</p>
+                <p className="font-semibold">{formatPrice(stock.low)}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">Prev Close</p>
                 <p className="font-semibold">
-                  ${stock.previous_close.toFixed(2)}
+                  {formatPrice(stock.previous_close)}
                 </p>
               </div>
               <div>
@@ -362,7 +362,7 @@ export default function StockDetails() {
               <div>
                 <p className="text-muted-foreground">Mkt Cap</p>
                 <p className="font-semibold">
-                  ${(marketCap / 1_000_000_000).toFixed(2)}B
+                  {formatPrice(marketCap / 1_000_000_000)}B
                 </p>
               </div>
             </CardContent>

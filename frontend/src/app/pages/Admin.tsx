@@ -11,6 +11,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { toast } from "sonner";
+import { formatPrice } from "../utils/currency";
 import { adminApi } from "../api";
 import {
   Trash2,
@@ -147,7 +148,12 @@ export default function Admin() {
         toast.success("Stock created successfully");
       }
 
-      setFormData({ symbol: "", name: "", price: "", quantity: "" });
+      setFormData({
+        symbol: "",
+        name: "",
+        price: "",
+        quantity: "",
+      });
       setEditingId(null);
       fetchStocks();
     } catch (err: unknown) {
@@ -326,7 +332,7 @@ export default function Admin() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="price">Price (₹)</Label>
+                <Label htmlFor="price">Price</Label>
                 <Input
                   id="price"
                   name="price"
@@ -411,7 +417,7 @@ export default function Admin() {
                         </span>
                       </div>
                       <div className="text-sm text-muted-foreground mt-1">
-                        Price: ${stock.price.toFixed(2)} | Qty: {stock.quantity}
+                        Price: {formatPrice(stock.price)} | Qty: {stock.quantity}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">

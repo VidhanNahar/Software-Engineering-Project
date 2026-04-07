@@ -30,6 +30,7 @@ import {
   DialogDescription,
 } from "../components/ui/dialog";
 import { TrendingUp, TrendingDown, AlertCircle, Loader2, CheckCircle2 } from "lucide-react";
+import { formatPrice } from "../utils/currency";
 import { toast } from "sonner";
 import { stockApi, transactionApi, walletApi, portfolioApi } from "../api";
 
@@ -355,7 +356,7 @@ export default function Trade() {
                         </Label>
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
-                            ₹
+                            {formatPrice(0).charAt(0)}
                           </span>
                           <Input
                             id="limitPrice"
@@ -415,11 +416,11 @@ export default function Trade() {
                     </p>
                   </div>
 
-                  <div className="space-y-3 pt-4 border-t border-border">
+                    <div className="space-y-3 pt-4 border-t border-border">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Current Price</span>
                       <span className="font-semibold">
-                        ${currentPrice.toFixed(2)}
+                        {formatPrice(currentPrice)}
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
@@ -429,19 +430,19 @@ export default function Trade() {
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Order Price</span>
                       <span className="font-semibold">
-                        ${price.toFixed(2)}
+                        {formatPrice(price)}
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Subtotal</span>
                       <span className="font-semibold">
-                        ${total.toFixed(2)}
+                        {formatPrice(total)}
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Est. Fee (0.1%)</span>
                       <span className="text-muted-foreground">
-                        ${estimatedFee.toFixed(2)}
+                        {formatPrice(estimatedFee)}
                       </span>
                     </div>
                   </div>
@@ -452,7 +453,7 @@ export default function Trade() {
                         Total
                       </span>
                       <span className="text-2xl font-bold">
-                        ${totalWithFee.toFixed(2)}
+                        {formatPrice(totalWithFee)}
                       </span>
                     </div>
 
@@ -465,7 +466,7 @@ export default function Trade() {
                             : ""
                         }
                       >
-                        ${walletBalance.toFixed(2)}
+                        {formatPrice(walletBalance)}
                       </span>
                     </div>
 

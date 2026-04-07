@@ -16,6 +16,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { formatPrice } from "../utils/currency";
 import { portfolioApi, transactionApi, walletApi, stockApi } from "../api";
 import { toast } from "sonner";
 
@@ -92,6 +93,8 @@ export default function Portfolio() {
             quantity?: number;
             average_price?: number;
             price?: number;
+            currency_code?: string;
+            currencyCode?: string;
           }) => {
             const stockInfo = stockMap.get(h.stock_id);
             const currentPrice =
@@ -119,7 +122,17 @@ export default function Portfolio() {
         );
 
         setHoldings(enrichedHoldings);
-        setTrades(transRes?.history || transRes?.transactions || []);
+
+        const enrichedTrades = (
+          transRes?.history ||
+          transRes?.transactions ||
+          []
+        ).map((t: any) => {
+          return {
+            ...t,
+          };
+        });
+        setTrades(enrichedTrades);
         setWallet(walletRes || { balance: 0 });
       } catch (error) {
         console.error("Failed to load portfolio", error);
@@ -267,8 +280,7 @@ export default function Portfolio() {
           <CardContent className="p-6">
             <p className="text-sm text-muted-foreground">Total Value</p>
             <p className="text-2xl font-bold mt-1">
-              ₹
-              {totalValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+              {formatPrice(totalValue)}
             </p>
           </CardContent>
         </Card>
@@ -276,10 +288,7 @@ export default function Portfolio() {
           <CardContent className="p-6">
             <p className="text-sm text-muted-foreground">Buying Power</p>
             <p className="text-2xl font-bold mt-1">
-              ₹
-              {wallet.balance.toLocaleString("en-US", {
-                minimumFractionDigits: 2,
-              })}
+              {formatPrice(wallet.balance)}
             </p>
           </CardContent>
         </Card>
@@ -292,10 +301,8 @@ export default function Portfolio() {
                   totalGainLoss >= 0 ? "text-green-500" : "text-red-500"
                 }`}
               >
-                {totalGainLoss >= 0 ? "+" : ""}₹
-                {Math.abs(totalGainLoss).toLocaleString("en-US", {
-                  minimumFractionDigits: 2,
-                })}
+                {totalGainLoss >= 0 ? "+" : ""}
+                {formatPrice(Math.abs(totalGainLoss))}
               </p>
             </div>
           </CardContent>
@@ -354,10 +361,7 @@ export default function Portfolio() {
                         </div>
                         <div className="text-right">
                           <p className="font-semibold">
-                            ₹
-                            {holding.totalValue.toLocaleString("en-US", {
-                              minimumFractionDigits: 2,
-                            })}
+                            {formatPrice(holding.totalValue)}
                           </p>
                           <div
                             className={`text-sm font-medium ${
@@ -366,8 +370,8 @@ export default function Portfolio() {
                                 : "text-red-500"
                             }`}
                           >
-                            {holding.totalGainLoss >= 0 ? "+" : ""}₹
-                            {holding.totalGainLoss.toFixed(2)} (
+                            {holding.totalGainLoss >= 0 ? "+" : ""}
+                            {formatPrice(Math.abs(holding.totalGainLoss))} (
                             {holding.gainLossPercent >= 0 ? "+" : ""}
                             {holding.gainLossPercent.toFixed(2)}%)
                           </div>
@@ -383,13 +387,13 @@ export default function Portfolio() {
                         <div>
                           <p className="text-muted-foreground mb-1">Avg Price</p>
                           <p className="font-medium">
-                            ${holding.avgPrice.toFixed(2)}
+                            {formatPrice(holding.avgPrice)}
                           </p>
                         </div>
                         <div>
                           <p className="text-muted-foreground mb-1">Current Price</p>
                           <p className="font-medium">
-                            ${holding.currentPrice.toFixed(2)}
+                            {formatPrice(holding.currentPrice)}
                           </p>
                         </div>
                         <div>
@@ -455,7 +459,7 @@ export default function Portfolio() {
                           name: string,
                           props: { payload: { percent: number } },
                         ) => [
-                          `₹${value.toLocaleString("en-US", { minimumFractionDigits: 2 })} (${props.payload.percent.toFixed(1)}%)`,
+                          `${formatPrice(value)} (${props.payload.percent.toFixed(1)}%)`,
                           name,
                         ]}
                       />
@@ -505,17 +509,13 @@ export default function Portfolio() {
                       </div>
                       <div className="text-right">
                         <p className="font-semibold">
-                          {trade.quantity} @ ₹
-                          {Number(
-                            trade.price || trade.price_per_stock || 0,
-                          ).toFixed(2)}
+                          {trade.quantity} @ {formatPrice(Number(trade.price || trade.price_per_stock || 0))}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          ₹
-                          {(
+                          {formatPrice(
                             trade.quantity *
                             Number(trade.price || trade.price_per_stock || 0)
-                          ).toFixed(2)}
+                          )}
                         </p>
                       </div>
                     </div>

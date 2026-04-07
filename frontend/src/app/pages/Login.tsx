@@ -10,7 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "../components/ui/card";
-import { TrendingUp, Eye, EyeOff, Moon, Sun, Loader2 } from "lucide-react";
+import { TrendingUp, Eye, EyeOff, Moon, Sun, Loader2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { useTheme } from "../context/ThemeContext";
 import { authApi } from "../api";
@@ -21,6 +21,8 @@ export default function Login() {
 
   const [isRegistering, setIsRegistering] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -38,6 +40,16 @@ export default function Login() {
     if (isVerifying) {
       if (!otp) {
         toast.error("Please enter the OTP");
+        return;
+      }
+    } else if (isResettingPassword) {
+      if (!otp || !password) {
+        toast.error("Please enter OTP and new password");
+        return;
+      }
+    } else if (isForgotPassword) {
+      if (!email) {
+        toast.error("Please enter your email");
         return;
       }
     } else if (isRegistering) {
@@ -66,6 +78,21 @@ export default function Login() {
         setIsRegistering(false);
         setOtp("");
         setPassword("");
+      } else if (isResettingPassword) {
+        await authApi.resetPassword({
+          email_id: email,
+          otp,
+          new_password: password,
+        });
+        toast.success("Password reset successful! Please log in.");
+        setIsResettingPassword(false);
+        setIsForgotPassword(false);
+        setOtp("");
+        setPassword("");
+      } else if (isForgotPassword) {
+        await authApi.forgotPassword(email);
+        toast.success("If the email exists, an OTP has been sent.");
+        setIsResettingPassword(true);
       } else if (isRegistering) {
         await authApi.register({
           name,
@@ -118,10 +145,21 @@ export default function Login() {
   const toggleMode = () => {
     setIsRegistering(!isRegistering);
     setIsVerifying(false);
+    setIsForgotPassword(false);
+    setIsResettingPassword(false);
     setName("");
     setEmail("");
     setPassword("");
     setDateOfBirth("");
+    setOtp("");
+  };
+
+  const handleBackToLogin = () => {
+    setIsForgotPassword(false);
+    setIsResettingPassword(false);
+    setIsRegistering(false);
+    setIsVerifying(false);
+    setPassword("");
     setOtp("");
   };
 
@@ -146,6 +184,14 @@ export default function Login() {
       <div className="w-full max-w-md">
         <Card className="w-full bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 shadow-xl">
           <CardHeader className="text-center space-y-4">
+            {(isForgotPassword || isVerifying || isResettingPassword) && (
+              <button 
+                onClick={handleBackToLogin}
+                className="absolute left-6 top-8 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 flex items-center gap-1 text-sm"
+              >
+                <ArrowLeft className="w-4 h-4" /> Back
+              </button>
+            )}
             <div className="flex items-center justify-center gap-3">
               <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-xl flex items-center justify-center">
                 <TrendingUp className="w-7 h-7 text-blue-600 dark:text-blue-400" />
@@ -153,24 +199,32 @@ export default function Login() {
             </div>
             <div>
               <CardTitle className="text-2xl text-gray-900 dark:text-white">
-                {isVerifying
-                  ? "Verify Email"
-                  : isRegistering
-                    ? "Create an Account"
-                    : "Welcome to FinXGrow"}
+                {isResettingPassword 
+                  ? "Reset Password" 
+                  : isForgotPassword 
+                    ? "Forgot Password" 
+                    : isVerifying
+                      ? "Verify Email"
+                      : isRegistering
+                        ? "Create an Account"
+                        : "Welcome to FinXGrow"}
               </CardTitle>
               <CardDescription className="text-gray-500 dark:text-gray-400">
-                {isVerifying
-                  ? "Enter the OTP sent to your email"
-                  : isRegistering
-                    ? "Sign up to start trading today"
-                    : "Sign in to your trading account to continue"}
+                {isResettingPassword
+                  ? "Enter the OTP and your new password"
+                  : isForgotPassword
+                    ? "Enter your email to receive an OTP"
+                    : isVerifying
+                      ? "Enter the OTP sent to your email"
+                      : isRegistering
+                        ? "Sign up to start trading today"
+                        : "Sign in to your trading account to continue"}
               </CardDescription>
             </div>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              {isVerifying && (
+              {(isVerifying || isResettingPassword) && (
                 <div className="space-y-2">
                   <Label
                     className="text-gray-700 dark:text-gray-200"
@@ -193,7 +247,7 @@ export default function Login() {
                 </div>
               )}
 
-              {!isVerifying && (
+              {!isVerifying && (!isResettingPassword || isForgotPassword) && (
                 <>
                   {isRegistering && (
                     <div className="space-y-2">
@@ -228,7 +282,7 @@ export default function Login() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       className="bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white"
-                      disabled={isVerifying}
+                      disabled={isVerifying || isResettingPassword}
                     />
                   </div>
 
@@ -249,44 +303,48 @@ export default function Login() {
                       />
                     </div>
                   )}
-
-                  <div className="space-y-2">
-                    <Label
-                      className="text-gray-700 dark:text-gray-200"
-                      htmlFor="password"
-                    >
-                      Password
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id="password"
-                        type={showPassword ? "text" : "password"}
-                        placeholder={
-                          isRegistering
-                            ? "Create a secure password"
-                            : "Enter your password"
-                        }
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white pr-10"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors"
-                      >
-                        {showPassword ? (
-                          <EyeOff className="w-5 h-5" />
-                        ) : (
-                          <Eye className="w-5 h-5" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
                 </>
               )}
 
-              {!isRegistering && !isVerifying && (
+              {(isRegistering || !isVerifying && !isForgotPassword || isResettingPassword) && (
+                <div className="space-y-2">
+                  <Label
+                    className="text-gray-700 dark:text-gray-200"
+                    htmlFor="password"
+                  >
+                    {isResettingPassword ? "New Password" : "Password"}
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder={
+                        isRegistering
+                          ? "Create a secure password"
+                          : isResettingPassword
+                            ? "Enter your new password"
+                            : "Enter your password"
+                      }
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-5 h-5" />
+                      ) : (
+                        <Eye className="w-5 h-5" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {!isRegistering && !isVerifying && !isForgotPassword && !isResettingPassword && (
                 <div className="flex items-center justify-between">
                   <label className="flex items-center gap-2 text-sm cursor-pointer">
                     <input
@@ -300,7 +358,7 @@ export default function Login() {
                   <button
                     type="button"
                     className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
-                    onClick={() => toast.info("Password reset coming soon")}
+                    onClick={() => setIsForgotPassword(true)}
                   >
                     Forgot password?
                   </button>
@@ -317,53 +375,57 @@ export default function Login() {
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Please wait
                   </>
-                ) : isVerifying ? (
-                  "Verify OTP"
-                ) : isRegistering ? (
-                  "Create Account"
-                ) : (
-                  "Sign In"
-                )}
+                ) : isResettingPassword
+                  ? "Reset Password"
+                  : isForgotPassword
+                    ? "Send OTP"
+                    : isVerifying 
+                      ? "Verify OTP" 
+                      : isRegistering 
+                        ? "Create Account" 
+                        : "Sign In"}
               </Button>
 
-              <p className="text-center text-sm text-gray-600 dark:text-gray-400 mt-4">
-                {isVerifying ? (
-                  <>
-                    <button
-                      type="button"
-                      className="text-blue-500 hover:text-blue-400 font-medium transition-colors"
-                      onClick={() => setIsVerifying(false)}
-                      disabled={isLoading}
-                    >
-                      Back to sign up
-                    </button>
-                  </>
-                ) : isRegistering ? (
-                  <>
-                    Already have an account?{" "}
-                    <button
-                      type="button"
-                      className="text-blue-500 hover:text-blue-400 font-medium transition-colors"
-                      onClick={toggleMode}
-                      disabled={isLoading}
-                    >
-                      Sign in
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    Don't have an account?{" "}
-                    <button
-                      type="button"
-                      className="text-blue-500 hover:text-blue-400 font-medium transition-colors"
-                      onClick={toggleMode}
-                      disabled={isLoading}
-                    >
-                      Sign up
-                    </button>
-                  </>
-                )}
-              </p>
+              {!isForgotPassword && !isResettingPassword && (
+                <p className="text-center text-sm text-gray-600 dark:text-gray-400 mt-4">
+                  {isVerifying ? (
+                    <>
+                      <button
+                        type="button"
+                        className="text-blue-500 hover:text-blue-400 font-medium transition-colors"
+                        onClick={() => setIsVerifying(false)}
+                        disabled={isLoading}
+                      >
+                        Back to sign up
+                      </button>
+                    </>
+                  ) : isRegistering ? (
+                    <>
+                      Already have an account?{" "}
+                      <button
+                        type="button"
+                        className="text-blue-500 hover:text-blue-400 font-medium transition-colors"
+                        onClick={toggleMode}
+                        disabled={isLoading}
+                      >
+                        Sign in
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      Don't have an account?{" "}
+                      <button
+                        type="button"
+                        className="text-blue-500 hover:text-blue-400 font-medium transition-colors"
+                        onClick={toggleMode}
+                        disabled={isLoading}
+                      >
+                        Sign up
+                      </button>
+                    </>
+                  )}
+                </p>
+              )}
             </form>
           </CardContent>
         </Card>

@@ -9,6 +9,8 @@ import {
   Tooltip,
 } from "chart.js";
 import { Line } from "react-chartjs-2";
+import { formatPrice } from "../../utils/currency";
+import { useTheme } from "../../context/ThemeContext";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
 
@@ -23,6 +25,12 @@ type Props = {
 };
 
 export function ClosePriceLineChart({ data, symbol }: Props) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  
+  const textColor = isDark ? "#94a3b8" : "#64748b";
+  const gridColor = isDark ? "rgba(51, 65, 85, 0.25)" : "rgba(0, 0, 0, 0.05)";
+
   const chartData = {
     labels: data.map((d) => d.label),
     datasets: [
@@ -51,18 +59,21 @@ export function ClosePriceLineChart({ data, symbol }: Props) {
             mode: "index",
             intersect: false,
             callbacks: {
-              label: (ctx) => `₹${Number(ctx.parsed.y).toFixed(2)}`,
+              label: (ctx) => formatPrice(Number(ctx.parsed.y)),
             },
           },
         },
         scales: {
-          x: { ticks: { color: "#94a3b8", maxTicksLimit: 7 }, grid: { color: "rgba(51, 65, 85, 0.25)" } },
+          x: { 
+            ticks: { color: textColor, maxTicksLimit: 7 }, 
+            grid: { color: gridColor } 
+          },
           y: {
             ticks: {
-              color: "#94a3b8",
-              callback: (value) => `₹${value}`,
+              color: textColor,
+              callback: (value) => formatPrice(Number(value)),
             },
-            grid: { color: "rgba(51, 65, 85, 0.25)" },
+            grid: { color: gridColor },
           },
         },
       }}

@@ -8,6 +8,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import type { CandlePoint } from "../../types/ohlcv";
+import { useTheme } from "../../context/ThemeContext";
 
 type Props = {
   data: CandlePoint[];
@@ -17,23 +18,31 @@ export function CandlestickChart({ data }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<any>(null);
+  const { theme } = useTheme();
 
   useEffect(() => {
     if (!containerRef.current) return;
 
+    const isDark = theme === "dark";
+    const backgroundColor = isDark ? "#111827" : "#ffffff";
+    const textColor = isDark ? "#cbd5e1" : "#1f2937";
+    const gridColor = isDark ? "rgba(148, 163, 184, 0.1)" : "rgba(0, 0, 0, 0.05)";
+
     const chart = createChart(containerRef.current, {
       autoSize: true,
       layout: {
-        background: { type: ColorType.Solid, color: "#111827" },
-        textColor: "#cbd5e1",
+        background: { type: ColorType.Solid, color: backgroundColor },
+        textColor: textColor,
       },
       grid: {
-        vertLines: { color: "rgba(148, 163, 184, 0.15)" },
-        horzLines: { color: "rgba(148, 163, 184, 0.15)" },
+        vertLines: { color: gridColor },
+        horzLines: { color: gridColor },
       },
-      rightPriceScale: { borderColor: "rgba(148, 163, 184, 0.35)" },
+      rightPriceScale: { 
+        borderColor: isDark ? "rgba(148, 163, 184, 0.35)" : "rgba(0, 0, 0, 0.1)",
+      },
       timeScale: {
-        borderColor: "rgba(148, 163, 184, 0.35)",
+        borderColor: isDark ? "rgba(148, 163, 184, 0.35)" : "rgba(0, 0, 0, 0.1)",
         timeVisible: true,
       },
       crosshair: {
@@ -58,7 +67,7 @@ export function CandlestickChart({ data }: Props) {
       chartRef.current = null;
       seriesRef.current = null;
     };
-  }, []);
+  }, [theme]); // Re-create chart on theme change to update colors properly
 
   useEffect(() => {
     if (!seriesRef.current || data.length === 0) return;

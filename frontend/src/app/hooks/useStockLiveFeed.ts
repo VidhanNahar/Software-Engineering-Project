@@ -131,7 +131,7 @@ export function useStockLiveFeed(selectedSymbol: string, basePrice: number, time
               return;
             }
             
-            console.debug(`💰 ${normalizedSymbol}: $${priceValue}`);
+            console.debug(`💰 ${normalizedSymbol}: ₹${priceValue}`);
             handleLivePrice(priceValue);
           } catch (e) {
             console.error("❌ Failed to parse WebSocket message:", e);

@@ -467,3 +467,86 @@ func (h *UserHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "Logged out successfully"})
 }
+
+func (h *UserHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Email string `json:"email_id"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	user, err := h.store.GetUserByEmail(req.Email)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Don't reveal if email exists or not for security
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"message": "If this email is registered, an OTP has been sent."})
+		} else {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	otp := GenerateOTP()
+	if err := h.store.SetOTP(user.UserID, otp); err != nil {
+		http.Error(w, "Error setting OTP", http.StatusInternalServerError)
+		return
+	}
+
+	fmt.Printf("\n======================================================\n")
+	fmt.Printf("🔑 Password Reset OTP for %s: %s\n", user.EmailID, otp)
+	fmt.Printf("======================================================\n\n")
+
+	go func() {
+		_ = utils.SendOTP(user.EmailID, user.UserName, otp)
+	}()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"message": "If this email is registered, an OTP has been sent."})
+}
+
+func (h *UserHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Email       string `json:"email_id"`
+		OTP         string `json:"otp"`
+		NewPassword string `json:"new_password"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	user, err := h.store.GetUserByEmail(req.Email)
+	if err != nil {
+		http.Error(w, "Invalid email or OTP", http.StatusUnauthorized)
+		return
+	}
+
+	isValid, err := h.store.ValidateOTP(user.UserID, req.OTP)
+	if err != nil || !isValid {
+		http.Error(w, "Invalid or expired OTP", http.StatusUnauthorized)
+		return
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		http.Error(w, "Error hashing password", http.StatusInternalServerError)
+		return
+	}
+
+	user.Password = string(hashedPassword)
+	if err := h.store.UpdateUserByID(user.UserID, user); err != nil {
+		http.Error(w, "Error updating password", http.StatusInternalServerError)
+		return
+	}
+
+	_ = h.store.DeleteOTP(user.UserID)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"message": "Password reset successfully. Please log in."})
+}
+
