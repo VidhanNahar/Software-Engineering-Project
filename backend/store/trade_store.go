@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -28,9 +30,10 @@ var (
 
 // TradeRequest carries minimum data required for buy/sell execution.
 type TradeRequest struct {
-	UserID   uuid.UUID
-	StockID  uuid.UUID
-	Quantity int
+	UserID        uuid.UUID
+	StockID       uuid.UUID
+	Quantity      int
+	PricePerStock float64
 }
 
 // ExecuteBuyTx performs an atomic buy trade:
@@ -48,16 +51,25 @@ func (s *Store) ExecuteBuyTx(ctx context.Context, req TradeRequest) error {
 	if req.Quantity <= 0 {
 		return errors.New("quantity must be greater than 0")
 	}
+	if req.PricePerStock <= 0 {
+		return errors.New("price per stock must be greater than 0")
+	}
 
-	// Price is fetched inside tx so all reads/writes share one boundary.
-	var stockPrice float64
+	// Get currency code and validate stock exists
 	var currencyCode string
-	if err = tx.QueryRowContext(ctx, `SELECT price, currency_code FROM stock WHERE stock_id = $1`, req.StockID).Scan(&stockPrice, &currencyCode); err != nil {
+	if err = tx.QueryRowContext(ctx, `SELECT currency_code FROM stock WHERE stock_id = $1`, req.StockID).Scan(&currencyCode); err != nil {
 		return err
 	}
 
+	// Use the price sent from frontend (real-time price user saw when clicking buy)
+	stockPrice := req.PricePerStock
+
 	conversionRate := getConversionRate(currencyCode)
 	totalCost := stockPrice * float64(req.Quantity) * conversionRate
+
+	log.Printf("💰 [BUY] User: %s, Stock: %s, Qty: %d, Price: %.2f, Currency: %s, Rate: %.2f, Total Cost: %.2f",
+		req.UserID, req.StockID, req.Quantity, stockPrice, currencyCode, conversionRate, totalCost)
+
 	// Lock wallet row to prevent double-spend in concurrent buys.
 	var balance float64
 	err = tx.QueryRowContext(ctx, `SELECT balance from wallet WHERE user_id=$1 FOR UPDATE`, req.UserID).Scan(&balance)
@@ -65,44 +77,70 @@ func (s *Store) ExecuteBuyTx(ctx context.Context, req TradeRequest) error {
 		return err
 	}
 	if balance < totalCost {
-		return ErrInsufficientBalance
+		return fmt.Errorf("insufficient balance: have %.2f, need %.2f", balance, totalCost)
 	}
 
 	// Debit wallet only after passing balance validation.
 	walletRes, err := tx.ExecContext(ctx, `UPDATE wallet SET balance = balance - $1 WHERE user_id=$2`, totalCost, req.UserID)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to update wallet: %w", err)
 	}
 	walletRows, err := walletRes.RowsAffected()
 	if err != nil {
 		return err
 	}
 	if walletRows == 0 {
-		return ErrWalletNotFound
+		return fmt.Errorf("wallet not found for user: %s", req.UserID)
 	}
+
+	// Log AFTER balance
+	var afterBalance float64
+	err = tx.QueryRowContext(ctx, `SELECT balance FROM wallet WHERE user_id = $1`, req.UserID).Scan(&afterBalance)
+	if err != nil {
+		log.Printf("⚠️ [BUY] Failed to read balance after update: %v", err)
+	}
+
+	log.Printf("✅ [BUY] Wallet updated. BEFORE: %.2f, AFTER: %.2f, DIFFERENCE: %.2f", balance, afterBalance, balance-afterBalance)
 
 	now := time.Now()
-	// Assumes one portfolio row per (user_id, stock_id).
-	// If duplicates exist in DB, this UPDATE may affect multiple rows.
-	res, err := tx.ExecContext(ctx, `UPDATE portfolio
-								SET quantity = quantity + $1, transaction_time = $2, price = $3
-								WHERE user_id = $4 AND stock_id = $5`,
-		req.Quantity, now, stockPrice, req.UserID, req.StockID)
-	if err != nil {
-		return err
-	}
 
-	rows, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		// First buy for this stock creates the portfolio position.
+	// Calculate the correct average price when buying same stock multiple times
+	var existingQty int
+	var existingPrice float64
+
+	err = tx.QueryRowContext(ctx, `SELECT quantity, price FROM portfolio WHERE user_id = $1 AND stock_id = $2`,
+		req.UserID, req.StockID).Scan(&existingQty, &existingPrice)
+	if err == nil {
+		// Stock already exists in portfolio - calculate new average price
+		totalCost := existingPrice*float64(existingQty) + stockPrice*float64(req.Quantity)
+		newQuantity := existingQty + req.Quantity
+		avgPrice := totalCost / float64(newQuantity)
+
+		log.Printf("📊 [BUY-AVG] Old: Qty=%d, Price=%.2f | New: Qty=%d, Price=%.2f | Result: Qty=%d, AvgPrice=%.2f",
+			existingQty, existingPrice, req.Quantity, stockPrice, newQuantity, avgPrice)
+
+		// Update with correct average price
+		res, err := tx.ExecContext(ctx, `UPDATE portfolio
+									SET quantity = quantity + $1, transaction_time = $2, price = $3
+									WHERE user_id = $4 AND stock_id = $5`,
+			req.Quantity, now, avgPrice, req.UserID, req.StockID)
+		if err != nil {
+			return err
+		}
+		_, err = res.RowsAffected()
+		if err != nil {
+			return err
+		}
+	} else if err == sql.ErrNoRows {
+		// First buy for this stock
+		log.Printf("📊 [BUY-NEW] Creating new portfolio entry: Qty=%d, Price=%.2f", req.Quantity, stockPrice)
 		_, err = tx.ExecContext(ctx, `INSERT INTO portfolio (user_id, stock_id, transaction_time, price, quantity)
   								VALUES ($1, $2, $3, $4, $5)`, req.UserID, req.StockID, now, stockPrice, req.Quantity)
 		if err != nil {
 			return err
 		}
+	} else {
+		return err
 	}
 
 	// Orders table is immutable trade history.
@@ -141,13 +179,18 @@ func (s *Store) ExecuteSellTx(ctx context.Context, req TradeRequest) error {
 	if req.Quantity <= 0 {
 		return errors.New("quantity must be greater than 0")
 	}
+	if req.PricePerStock <= 0 {
+		return errors.New("price per stock must be greater than 0")
+	}
 
-	// Current price is used to compute credited sell amount.
-	var stockPrice float64
+	// Get currency code and validate stock exists
 	var currencyCode string
-	if err = tx.QueryRowContext(ctx, `SELECT price, currency_code FROM stock WHERE stock_id = $1`, req.StockID).Scan(&stockPrice, &currencyCode); err != nil {
+	if err = tx.QueryRowContext(ctx, `SELECT currency_code FROM stock WHERE stock_id = $1`, req.StockID).Scan(&currencyCode); err != nil {
 		return err
 	}
+
+	// Use the price sent from frontend (real-time price user saw when clicking sell)
+	stockPrice := req.PricePerStock
 
 	// Lock holding row to prevent oversell in concurrent requests.
 	var ownedQty int
@@ -177,17 +220,38 @@ func (s *Store) ExecuteSellTx(ctx context.Context, req TradeRequest) error {
 	// Credit wallet only after shares are reduced.
 	conversionRate := getConversionRate(currencyCode)
 	sellAmount := stockPrice * float64(req.Quantity) * conversionRate
+
+	// Log BEFORE balance
+	var beforeBalance float64
+	err = tx.QueryRowContext(ctx, `SELECT balance FROM wallet WHERE user_id = $1`, req.UserID).Scan(&beforeBalance)
+	if err != nil {
+		return fmt.Errorf("failed to read wallet balance: %w", err)
+	}
+
+	log.Printf("💰 [SELL] User: %s, Stock: %s, Qty: %d, Price: %.2f, Currency: %s, Rate: %.2f, Sell Amount: %.2f",
+		req.UserID, req.StockID, req.Quantity, stockPrice, currencyCode, conversionRate, sellAmount)
+	log.Printf("💵 [SELL] Balance BEFORE: %.2f", beforeBalance)
+
 	walletRes, err := tx.ExecContext(ctx, `UPDATE wallet SET balance = balance + $1 WHERE user_id = $2`, sellAmount, req.UserID)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to update wallet: %w", err)
 	}
 	walletRows, err := walletRes.RowsAffected()
 	if err != nil {
 		return err
 	}
 	if walletRows == 0 {
-		return ErrWalletNotFound
+		return fmt.Errorf("wallet not found for user: %s", req.UserID)
 	}
+
+	// Log AFTER balance
+	var afterBalance float64
+	err = tx.QueryRowContext(ctx, `SELECT balance FROM wallet WHERE user_id = $1`, req.UserID).Scan(&afterBalance)
+	if err != nil {
+		log.Printf("⚠️ [SELL] Failed to read balance after update: %v", err)
+	}
+
+	log.Printf("✅ [SELL] Wallet updated. BEFORE: %.2f, AFTER: %.2f, DIFFERENCE: %.2f", beforeBalance, afterBalance, afterBalance-beforeBalance)
 
 	// Orders table is immutable trade history.
 	_, err = tx.ExecContext(ctx, `INSERT INTO orders (stock_id, user_id, timestamp, status, quantity, price_per_stock)

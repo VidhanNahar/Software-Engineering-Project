@@ -118,12 +118,12 @@ export const stockApi = {
 };
 
 export const transactionApi = {
-  buy: (data: { stock_id: string; quantity: number }) =>
+  buy: (data: { stock_id: string; quantity: number; price_per_stock: number }) =>
     apiCall("/transactions/buy", {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  sell: (data: { stock_id: string; quantity: number }) =>
+  sell: (data: { stock_id: string; quantity: number; price_per_stock: number }) =>
     apiCall("/transactions/sell", {
       method: "POST",
       body: JSON.stringify(data),
@@ -189,5 +189,13 @@ export const userApi = {
     apiCall("/user/kyc/complete", {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+};
+
+export const ordersApi = {
+  getPendingOrders: () => apiCall("/pending-orders"),
+  cancelPendingOrder: (orderId: string) =>
+    apiCall(`/pending-orders/${orderId}`, {
+      method: "DELETE",
     }),
 };

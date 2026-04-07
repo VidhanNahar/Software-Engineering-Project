@@ -8,8 +8,11 @@ import (
 
 // TradeOrderRequest is the request payload for buy/sell endpoints.
 type TradeOrderRequest struct {
-	StockID  uuid.UUID `json:"stock_id"`
-	Quantity int       `json:"quantity"`
+	StockID       uuid.UUID `json:"stock_id"`
+	Quantity      int       `json:"quantity"`
+	PricePerStock float64   `json:"price_per_stock"`
+	OrderType     string    `json:"order_type"`    // "MARKET" or "LIMIT"
+	TimeInForce   string    `json:"time_in_force"` // "DAY", "GTC" (Good Till Canceled)
 }
 
 // StockQuote represents current stock market data.

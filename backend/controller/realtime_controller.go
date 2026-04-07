@@ -32,20 +32,18 @@ func (h *RealtimeHandler) StocksStream(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to upgrade connection", http.StatusBadRequest)
 		return
 	}
-	defer conn.Close()
 
 	h.broadcaster.AddClient(conn)
-	defer h.broadcaster.RemoveClient(conn)
 
-	// Send initial snapshot to new subscriber.
+	// Send initial snapshot through broadcaster channel (thread-safe)
 	isOpen, _ := h.store.IsMarketOpen()
 	stocks, _ := h.store.GetStocks()
-	_ = conn.WriteJSON(map[string]any{
-		"type":        "stocks_snapshot",
-		"count":       len(stocks),
-		"market_open": isOpen,
-		"stocks":      stocks,
-	})
+	h.broadcaster.PublishSnapshot(stocks, isOpen)
+
+	defer func() {
+		h.broadcaster.RemoveClient(conn)
+		conn.Close()
+	}()
 
 	// Keep the connection alive until client disconnects.
 	for {

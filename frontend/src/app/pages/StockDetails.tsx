@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate, useParams } from "react-router";
 import {
   ArrowDownRight,
@@ -10,7 +10,7 @@ import {
 import { toast } from "sonner";
 import { formatPrice } from "../utils/currency";
 import { isKycVerified } from "../utils/auth";
-import { stockApi, watchlistApi } from "../api";
+import { stockApi, watchlistApi, adminApi } from "../api";
 import { Button } from "../components/ui/button";
 import {
   Card,
@@ -43,6 +43,7 @@ export default function StockDetails() {
   const [stock, setStock] = useState<StockEntity | null>(null);
   const [stockOptions, setStockOptions] = useState<StockOption[]>([]);
   const [marketOpen, setMarketOpen] = useState<boolean>(false);
+  const marketOpenRef = useRef(false);
 
   const [inWatchlist, setInWatchlist] = useState(false);
   const [watchlistItemId, setWatchlistItemId] = useState<string | null>(null);
@@ -97,11 +98,35 @@ export default function StockDetails() {
 
   // Listen for market status and real-time price updates
   useEffect(() => {
+    // Fetch initial market status
+    const fetchMarketStatus = async () => {
+      try {
+        const status = await adminApi.getMarketStatus();
+        if (status?.is_open !== undefined) {
+          setMarketOpen(status.is_open);
+          marketOpenRef.current = status.is_open;
+          console.log(
+            status.is_open
+              ? "✅ Market OPEN on page load"
+              : "🔒 Market CLOSED on page load"
+          );
+        }
+      } catch (err) {
+        console.log("Failed to fetch market status on load", err);
+        // Default to true if fetch fails
+        setMarketOpen(true);
+        marketOpenRef.current = true;
+      }
+    };
+
+    fetchMarketStatus();
+
     const connectMarketListener = () => {
       try {
         const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || "localhost:8080";
         const ws = new WebSocket(
-          `${protocol}://${window.location.host}/ws/stocks`,
+          `${protocol}://${backendUrl}/ws/stocks`,
         );
 
         ws.onmessage = (event) => {
@@ -110,21 +135,28 @@ export default function StockDetails() {
               stocks?: any[];
               ticks?: any[];
               market_open?: boolean;
+              type?: string;
             };
 
-            if (typeof payload.market_open === "boolean") {
-              setMarketOpen(payload.market_open);
-              // If market closed, stop updating
-              if (!payload.market_open) {
-                return;
-              }
+            // Handle market status updates
+            if (payload.type === "market_status" && payload.market_open !== undefined) {
+              setMarketOpen(payload.market_open as boolean);
+              marketOpenRef.current = payload.market_open as boolean;  // Update ref immediately
+              console.log(payload.market_open ? "🔓 Market opened" : "🔒 Market closed");
+              return;
+            }
+
+            // Check if market is open using ref (synchronous check)
+            if (!marketOpenRef.current) {
+              console.debug("📊 Market closed, freezing prices");
+              return;
             }
 
             // Update stock price in header if this is our symbol
             if (stock && (payload.stocks || payload.ticks)) {
               const stocksArray = payload.stocks || payload.ticks;
-              const updatedStock = stocksArray.find(
-                (s) =>
+              const updatedStock = stocksArray?.find(
+                (s: any) =>
                   (s.symbol || s.Symbol || "").toUpperCase() ===
                   stock.symbol.toUpperCase(),
               );
@@ -217,6 +249,12 @@ export default function StockDetails() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
+      {!marketOpen && (
+        <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-4 text-center">
+          <p className="text-red-400 font-semibold text-lg">🔒 Market Closed</p>
+          <p className="text-red-300 text-sm mt-1">All prices are frozen. Live updates will resume when market opens.</p>
+        </div>
+      )}
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
         <div>
           <Button

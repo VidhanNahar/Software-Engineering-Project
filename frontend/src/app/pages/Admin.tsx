@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
 import { isAdmin } from "../utils/auth";
 import {
@@ -52,6 +52,7 @@ export default function Admin() {
     quantity: "",
   });
   const [editingId, setEditingId] = useState<string | null>(null);
+  const isMarketOpenRef = useRef(true);
 
   const fetchStocks = async () => {
     try {
@@ -86,7 +87,57 @@ export default function Admin() {
     fetchStocks();
     fetchMarketStatus();
     const interval = setInterval(fetchMarketStatus, 2000);
-    return () => clearInterval(interval);
+
+    // Establish WebSocket connection for real-time market status updates
+    let ws: WebSocket | null = null;
+    try {
+      const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+      ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws/stocks`);
+
+      ws.onopen = () => {
+        console.log("💫 Admin WebSocket connected");
+      };
+
+      ws.onmessage = (evt) => {
+        try {
+          const data = JSON.parse(evt.data);
+
+          // Handle market status updates from WebSocket
+          if (data.type === "market_status") {
+            setMarketStatus((prev) => ({
+              ...prev,
+              is_open: data.market_open,
+            }));
+            isMarketOpenRef.current = data.market_open;
+            console.log(
+              data.market_open
+                ? "🔓 MARKET OPENED - Admin notified"
+                : "🔒 MARKET CLOSED - Admin notified"
+            );
+            return;
+          }
+        } catch (err) {
+          console.debug("Failed to parse WebSocket message in Admin", err);
+        }
+      };
+
+      ws.onerror = () => {
+        console.error("Admin WebSocket error");
+      };
+
+      ws.onclose = () => {
+        console.log("Admin WebSocket disconnected");
+      };
+    } catch (err) {
+      console.error("Failed to establish WebSocket connection in Admin", err);
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (ws) {
+        ws.close();
+      }
+    };
   }, [navigate]);
 
   // ── Early return for non-admins (rendered while redirect is in flight) ──

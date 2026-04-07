@@ -23,11 +23,12 @@ import (
 )
 
 type UserHandler struct {
-	store *store.Store
+	store      *store.Store
+	emailQueue *utils.EmailQueue
 }
 
-func NewUserHandler(s *store.Store) *UserHandler {
-	return &UserHandler{store: s}
+func NewUserHandler(s *store.Store, eq *utils.EmailQueue) *UserHandler {
+	return &UserHandler{store: s, emailQueue: eq}
 }
 
 func GenerateOTP() string {
@@ -91,12 +92,8 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("🔒 OTP for %s: %s\n", user.EmailID, otp)
 	fmt.Printf("======================================================\n\n")
 
-	go func() {
-		err := utils.SendOTP(user.EmailID, user.UserName, otp)
-		if err != nil {
-			fmt.Printf("Failed to send verification email to %s: %v\n", user.EmailID, err)
-		}
-	}()
+	// Queue email asynchronously (non-blocking)
+	h.emailQueue.SubmitJob(user.EmailID, user.UserName, otp)
 
 	user.Password = ""
 	w.WriteHeader(http.StatusCreated)
@@ -500,9 +497,8 @@ func (h *UserHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("🔑 Password Reset OTP for %s: %s\n", user.EmailID, otp)
 	fmt.Printf("======================================================\n\n")
 
-	go func() {
-		_ = utils.SendOTP(user.EmailID, user.UserName, otp)
-	}()
+	// Queue email asynchronously (non-blocking)
+	h.emailQueue.SubmitJob(user.EmailID, user.UserName, otp)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "If this email is registered, an OTP has been sent."})
@@ -549,4 +545,3 @@ func (h *UserHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"message": "Password reset successfully. Please log in."})
 }
-

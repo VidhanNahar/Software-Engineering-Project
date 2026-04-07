@@ -6,11 +6,15 @@ import (
 	"backend-go/market"
 	"backend-go/middleware"
 	"backend-go/store"
-	"encoding/json"
+	"backend-go/utils"
+	"context"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
@@ -71,6 +75,10 @@ func main() {
 		log.Println("Warning: failed to ensure default admin:", err)
 	}
 
+	// Initialize async email queue (10 workers, 1000 job buffer)
+	emailQueue := utils.NewEmailQueue(10, 1000)
+	defer emailQueue.Stop()
+
 	// Create a http router
 	r := mux.NewRouter()
 	corsMiddleware := func(next http.Handler) http.Handler {
@@ -91,20 +99,43 @@ func main() {
 		})
 	}
 
-	// 3. Tell the router to use this middleware
+	// Setup rate limiter
+	rateLimiter := middleware.NewRateLimitStore()
+
+	// Apply middleware in order (from bottom to top in request pipeline)
+	// IMPORTANT: SelectiveTimeoutMiddleware skips WS routes to allow long-lived connections
 	r.Use(corsMiddleware)
+	r.Use(middleware.SelectiveTimeoutMiddleware(30 * time.Second))
+	r.Use(rateLimiter.RateLimitMiddleware(100)) // 100 requests per minute
+
 	broadcaster := market.NewWebSocketBroadcaster()
 	marketService := market.NewMarketService(s, broadcaster)
-	log.Println("Starting market engine loop")
-	marketService.EnsureEngineRunning()
+	log.Println("Market engine initialized")
 
-	u := controller.NewUserHandler(s)
-	t := controller.NewTradeHandler(s, marketService)
+	// Use mock price broadcaster instead of real market engine (no database hits)
+	mockBroadcaster := market.NewMockPriceBroadcaster(broadcaster, s)
+
+	// Load initial stocks and start mock broadcaster
+	go func() {
+		time.Sleep(1 * time.Second) // Wait for DB to be ready
+		stocks, err := s.GetStocks()
+		if err != nil {
+			log.Println("Warning: could not load stocks for mock broadcaster:", err)
+			return
+		}
+		mockBroadcaster.SetStocks(stocks)
+		mockBroadcaster.Start()
+		log.Println("✅ Mock price broadcaster started - prices will update every 2 seconds")
+	}()
+
+	u := controller.NewUserHandler(s, emailQueue)
+	t := controller.NewTradeHandler(s, marketService, broadcaster)
 	rt := controller.NewRealtimeHandler(s, broadcaster)
+	h := controller.NewHealthHandler(db, rdb)
 
-	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-	}).Methods("GET")
+	// Routes for health checks (no auth required)
+	r.HandleFunc("/health", h.Check).Methods("GET")
+	r.HandleFunc("/readiness", h.Readiness).Methods("GET")
 
 	r.HandleFunc("/auth/register", u.CreateUser).Methods("POST")
 	r.HandleFunc("/auth/login", u.Login).Methods("POST")
@@ -125,7 +156,9 @@ func main() {
 	r.HandleFunc("/api/stocks/{id}/history", t.GetStockHistory).Methods("GET")
 	r.HandleFunc("/api/stocks/{id}/stats", t.GetStockStats).Methods("GET")
 	r.HandleFunc("/api/market/status", t.GetMarketStatus).Methods("GET")
-	r.HandleFunc("/ws/stocks", rt.StocksStream).Methods("GET")
+
+	// WebSocket route - NO Methods() restriction (WebSocket upgrade is special HTTP)
+	r.HandleFunc("/ws/stocks", rt.StocksStream)
 
 	api := r.PathPrefix("/api").Subrouter()
 	api.Use(middleware.AuthMiddleware)
@@ -143,6 +176,8 @@ func main() {
 	api.HandleFunc("/orders", t.GetOrders).Methods("GET")
 	api.HandleFunc("/transactions/history", t.GetOrders).Methods("GET")
 	api.HandleFunc("/wallet", t.GetWallet).Methods("GET")
+	api.HandleFunc("/pending-orders", t.GetPendingOrders).Methods("GET")
+	api.HandleFunc("/pending-orders/{order_id}", t.CancelPendingOrder).Methods("DELETE")
 	api.HandleFunc("/watchlist", t.GetWatchlist).Methods("GET")
 	api.HandleFunc("/watchlist", t.AddWatchlist).Methods("POST")
 	api.HandleFunc("/watchlist/{id}", t.RemoveWatchlist).Methods("DELETE")
@@ -159,12 +194,47 @@ func main() {
 	api.HandleFunc("/admin/orders", t.GetAllOrdersAdmin).Methods("GET")
 	api.HandleFunc("/admin/market/start", t.StartMarket).Methods("POST")
 	api.HandleFunc("/admin/market/stop", t.StopMarket).Methods("POST")
+	api.HandleFunc("/admin/pending-orders/release", t.ReleasePendingOrdersOnMarketClose).Methods("POST")
 
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
-	// Replace the old log.Fatal(http.ListenAndServe(":"+port, r)) with this:
-	log.Printf("Server starting on port %s...", port)
-	log.Fatal(http.ListenAndServe(":"+port, corsMiddleware(r)))
+
+	// Create HTTP server with timeouts for production
+	server := &http.Server{
+		Addr:         ":" + port,
+		Handler:      r,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+
+	// Start server in a goroutine
+	log.Printf("✅ Server starting on port %s...", port)
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server error: %v", err)
+		}
+	}()
+
+	// Graceful shutdown: listen for interrupt signals (SIGINT, SIGTERM)
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	// Block until shutdown signal received
+	<-sigChan
+
+	log.Println("\n🛑 Shutdown signal received, gracefully shutting down...")
+
+	// Create a context with 30-second timeout for graceful shutdown
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Attempt graceful shutdown
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Fatalf("Server forced to shutdown: %v", err)
+	}
+
+	log.Println("\n✅ Server shutdown complete")
 }

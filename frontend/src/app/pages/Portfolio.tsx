@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
 import {
   Card,
@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { formatPrice } from "../utils/currency";
-import { portfolioApi, transactionApi, walletApi, stockApi } from "../api";
+import { portfolioApi, transactionApi, walletApi, stockApi, adminApi } from "../api";
 import { toast } from "sonner";
 
 interface HoldingItem {
@@ -55,6 +55,8 @@ export default function Portfolio() {
   const [trades, setTrades] = useState<TradeHistoryItem[]>([]);
   const [wallet, setWallet] = useState<WalletData>({ balance: 0 });
   const [loading, setLoading] = useState(true);
+  const [isMarketOpen, setIsMarketOpen] = useState(true);
+  const isMarketOpenRef = useRef(true);
 
   useEffect(() => {
     const fetchPortfolioData = async () => {
@@ -91,15 +93,14 @@ export default function Portfolio() {
             stock_id: string;
             symbol?: string;
             quantity?: number;
-            average_price?: number;
-            price?: number;
+            avg_buy_price?: number;
+            current_price?: number;
             currency_code?: string;
             currencyCode?: string;
           }) => {
             const stockInfo = stockMap.get(h.stock_id);
-            const currentPrice =
-              stockInfo?.price || h.average_price || h.price || 0;
-            const avgPrice = h.average_price || h.price || currentPrice;
+            const currentPrice = h.current_price || 0;
+            const avgPrice = h.avg_buy_price || currentPrice;
             const quantity = h.quantity || 0;
 
             const totalValue = quantity * currentPrice;
@@ -144,6 +145,29 @@ export default function Portfolio() {
 
     fetchPortfolioData();
 
+    // Fetch initial market status
+    const fetchMarketStatus = async () => {
+      try {
+        const status = await adminApi.getMarketStatus();
+        if (status?.is_open !== undefined) {
+          setIsMarketOpen(status.is_open);
+          isMarketOpenRef.current = status.is_open;
+          console.log(
+            status.is_open
+              ? "✅ Market OPEN on page load"
+              : "🔒 Market CLOSED on page load"
+          );
+        }
+      } catch (err) {
+        console.log("Failed to fetch market status on load", err);
+        // Default to true if fetch fails
+        setIsMarketOpen(true);
+        isMarketOpenRef.current = true;
+      }
+    };
+
+    fetchMarketStatus();
+
     // Establish WebSocket connection for real-time price updates
     let ws: WebSocket | null = null;
     try {
@@ -158,8 +182,20 @@ export default function Portfolio() {
         try {
           const data = JSON.parse(evt.data);
 
-          // If market is closed, don't update prices
-          if (data.market_open === false) {
+          // Handle market status updates
+          if (data.type === "market_status") {
+            setIsMarketOpen(data.market_open);
+            isMarketOpenRef.current = data.market_open;  // Update ref immediately
+            if (data.market_open === false) {
+              console.log("🔒 MARKET CLOSED - All prices frozen");
+            } else {
+              console.log("🔓 MARKET OPENED - Live prices resuming");
+            }
+            return;
+          }
+
+          // Check if market is open using ref (synchronous check)
+          if (!isMarketOpenRef.current) {
             console.debug("📊 Market closed, freezing Portfolio prices");
             return;
           }
@@ -252,6 +288,12 @@ export default function Portfolio() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
+      {!isMarketOpen && (
+        <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-4 text-center">
+          <p className="text-red-400 font-semibold text-lg">🔒 Market Closed</p>
+          <p className="text-red-300 text-sm mt-1">All prices are frozen. Live updates will resume when market opens.</p>
+        </div>
+      )}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold">Portfolio</h1>
@@ -454,12 +496,8 @@ export default function Portfolio() {
                           color: "var(--foreground)",
                           borderRadius: "8px",
                         }}
-                        formatter={(
-                          value: number,
-                          name: string,
-                          props: { payload: { percent: number } },
-                        ) => [
-                          `${formatPrice(value)} (${props.payload.percent.toFixed(1)}%)`,
+                        formatter={(value: any, name: any, props: any) => [
+                          `${formatPrice(value)} (${props.payload?.percent?.toFixed(1)}%)`,
                           name,
                         ]}
                       />

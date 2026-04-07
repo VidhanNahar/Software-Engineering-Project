@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"time"
 
 	_ "github.com/lib/pq"
 )
@@ -19,9 +20,10 @@ func Connect(host, port, user, password, dbname string) (*sql.DB, error) {
 	}
 
 	// Configure connection pool for high concurrency
-	db.SetMaxOpenConns(50)   // Max concurrent connections
-	db.SetMaxIdleConns(10)   // Min idle connections to keep open
-	db.SetConnMaxLifetime(0) // No lifetime limit
+	db.SetMaxOpenConns(150)                // Max concurrent connections
+	db.SetMaxIdleConns(30)                 // Min idle connections to keep open
+	db.SetConnMaxLifetime(0)               // No lifetime limit
+	db.SetConnMaxIdleTime(5 * time.Minute) // Close idle connections after 5 min
 
 	err = db.Ping()
 	if err != nil {

@@ -9,10 +9,12 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// ClientConn wraps a websocket connection with its own write mutex
+// ClientConn wraps a websocket connection with a write channel
 type ClientConn struct {
-	conn *websocket.Conn
-	mu   sync.Mutex
+	conn     *websocket.Conn
+	writeCh  chan map[string]any
+	closedMu sync.Mutex
+	closed   bool
 }
 
 // WebSocketBroadcaster is a central fan-out hub for real-time events.
@@ -28,20 +30,49 @@ func NewWebSocketBroadcaster() *WebSocketBroadcaster {
 }
 
 func (b *WebSocketBroadcaster) AddClient(conn *websocket.Conn) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	// Only add if not already present
-	if _, exists := b.clients[conn]; !exists {
-		b.clients[conn] = &ClientConn{conn: conn}
-		log.Printf("✅ WebSocket client added. Total clients: %d", len(b.clients))
+	clientConn := &ClientConn{
+		conn:    conn,
+		writeCh: make(chan map[string]any, 100), // Buffered channel
+		closed:  false,
 	}
+
+	b.mu.Lock()
+	b.clients[conn] = clientConn
+	b.mu.Unlock()
+
+	log.Printf("✅ WebSocket client added. Total clients: %d", len(b.clients))
+
+	// Start a write goroutine for this connection
+	go clientConn.writeLoop(b)
 }
 
 func (b *WebSocketBroadcaster) RemoveClient(conn *websocket.Conn) {
 	b.mu.Lock()
-	defer b.mu.Unlock()
-	delete(b.clients, conn)
-	log.Printf("❌ WebSocket client removed. Total clients: %d", len(b.clients))
+	clientConn, exists := b.clients[conn]
+	if exists {
+		delete(b.clients, conn)
+	}
+	b.mu.Unlock()
+
+	if exists {
+		clientConn.closedMu.Lock()
+		clientConn.closed = true
+		clientConn.closedMu.Unlock()
+		close(clientConn.writeCh)
+		_ = conn.Close()
+		log.Printf("❌ WebSocket client removed. Total clients: %d", len(b.clients))
+	}
+}
+
+// writeLoop runs in its own goroutine and ensures no concurrent writes
+func (c *ClientConn) writeLoop(b *WebSocketBroadcaster) {
+	for payload := range c.writeCh {
+		if err := c.conn.WriteJSON(payload); err != nil {
+			log.Println("❌ websocket write error:", err)
+			b.RemoveClient(c.conn)
+			return
+		}
+	}
 }
 
 func (b *WebSocketBroadcaster) broadcast(payload map[string]any) {
@@ -60,14 +91,21 @@ func (b *WebSocketBroadcaster) broadcast(payload map[string]any) {
 	log.Printf("📤 Broadcasting to %d clients: type=%v", len(clients), payload["type"])
 
 	for _, clientConn := range clients {
-		clientConn.mu.Lock()
-		err := clientConn.conn.WriteJSON(payload)
-		clientConn.mu.Unlock()
+		clientConn.closedMu.Lock()
+		isClosed := clientConn.closed
+		clientConn.closedMu.Unlock()
 
-		if err != nil {
-			log.Println("❌ websocket broadcast error:", err)
-			b.RemoveClient(clientConn.conn)
-			_ = clientConn.conn.Close()
+		if isClosed {
+			continue
+		}
+
+		// Non-blocking send to write channel
+		select {
+		case clientConn.writeCh <- payload:
+			// Sent successfully
+		default:
+			// Channel full or closed, skip this message
+			log.Println("⚠️ Client channel full, dropping message")
 		}
 	}
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router";
 import {
   Card,
@@ -33,7 +33,7 @@ import { TrendingUp, TrendingDown, AlertCircle, Loader2, CheckCircle2 } from "lu
 import { formatPrice } from "../utils/currency";
 import { toast } from "sonner";
 import { isKycVerified } from "../utils/auth";
-import { stockApi, transactionApi, walletApi, portfolioApi } from "../api";
+import { stockApi, transactionApi, walletApi, portfolioApi, adminApi, ordersApi } from "../api";
 
 export default function Trade() {
   const location = useLocation();
@@ -56,11 +56,12 @@ export default function Trade() {
   const [quantity, setQuantity] = useState("10");
   const [orderMode, setOrderMode] = useState<"market" | "limit">("market");
   const [limitPrice, setLimitPrice] = useState("");
-  const [timeInForce, setTimeInForce] = useState("day");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [isMarketOpen, setIsMarketOpen] = useState(true);
+  const isMarketOpenRef = useRef(true);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -90,6 +91,29 @@ export default function Trade() {
     };
     fetchData();
 
+    // Fetch initial market status
+    const fetchMarketStatus = async () => {
+      try {
+        const status = await adminApi.getMarketStatus();
+        if (status?.is_open !== undefined) {
+          setIsMarketOpen(status.is_open);
+          isMarketOpenRef.current = status.is_open;
+          console.log(
+            status.is_open
+              ? "✅ Market OPEN on page load"
+              : "🔒 Market CLOSED on page load"
+          );
+        }
+      } catch (err) {
+        console.log("Failed to fetch market status on load", err);
+        // Default to true if fetch fails
+        setIsMarketOpen(true);
+        isMarketOpenRef.current = true;
+      }
+    };
+
+    fetchMarketStatus();
+
     // Establish WebSocket connection for real-time price updates
     let ws: WebSocket | null = null;
     try {
@@ -104,8 +128,20 @@ export default function Trade() {
         try {
           const data = JSON.parse(evt.data);
 
-          // If market is closed, don't update prices
-          if (data.market_open === false) {
+          // Handle market status updates
+          if (data.type === "market_status") {
+            setIsMarketOpen(data.market_open);
+            isMarketOpenRef.current = data.market_open;  // Update ref immediately
+            if (data.market_open === false) {
+              console.log("🔒 MARKET CLOSED - Trading disabled");
+            } else {
+              console.log("🔓 MARKET OPENED - Trading enabled");
+            }
+            return;
+          }
+
+          // Check if market is open using ref (synchronous check)
+          if (!isMarketOpenRef.current) {
             console.debug("📊 Market closed, freezing Trade prices");
             return;
           }
@@ -173,8 +209,9 @@ export default function Trade() {
       return;
     }
 
-    if (orderMode === "limit" && (!limitPrice || price <= 0)) {
-      toast.error("Please enter a valid limit price");
+    const limitPriceNum = parseFloat(limitPrice);
+    if (orderMode === "limit" && (!limitPrice || limitPriceNum <= 0)) {
+      toast.error("Please enter a valid limit price (must be positive)");
       return;
     }
 
@@ -204,33 +241,58 @@ export default function Trade() {
       const payload = {
         stock_id: selectedStockId,
         quantity: qty,
-        price_per_stock: price, // Handled automatically in market orders if omitted depending on backend design
+        price_per_stock: orderMode === "limit" ? limitPriceNum : price,
+        order_type: orderMode === "limit" ? "LIMIT" : "MARKET",
+        time_in_force: "DAY",
       };
 
+      let responseData: any;
       if (orderType === "buy") {
-        await transactionApi.buy(payload);
-        setSuccessMessage(`Successfully placed buy order for ${qty} shares!`);
+        responseData = await transactionApi.buy(payload);
       } else {
-        await transactionApi.sell(payload);
-        setSuccessMessage(`Successfully placed sell order for ${qty} shares!`);
+        responseData = await transactionApi.sell(payload);
+      }
+
+      // Check if order is pending or executed
+      if (responseData?.status === "PENDING" || responseData?.message?.includes("pending")) {
+        // Limit order was created but not executed
+        setSuccessMessage(
+          `📋 Limit order created and pending\n\n` +
+          `${orderType === "buy" ? "Buy" : "Sell"} ${qty} shares at ₹${limitPriceNum}\n` +
+          `Order will execute when price ${orderType === "buy" ? "drops to" : "rises to"} ₹${limitPriceNum} or ${orderType === "buy" ? "lower" : "higher"}`
+        );
+        toast.success("Pending limit order created! Check your pending orders.");
+      } else {
+        // Order was executed immediately
+        const orderTypeText = orderMode === "limit" ? `limit order at ₹${limitPriceNum}` : "market order";
+        setSuccessMessage(`Successfully placed ${orderType} ${orderTypeText} for ${qty} shares!`);
+        toast.success(`${orderType === "buy" ? "Buy" : "Sell"} order executed!`);
       }
 
       setIsSuccessDialogOpen(true);
 
-      setTimeout(() => {
-        navigate("/portfolio");
-      }, 3000);
-
       // Refresh wallet & portfolio after trade
       const [walletRes, portfolioRes] = await Promise.all([
-        walletApi.get().catch(() => ({ balance: walletBalance })),
-        portfolioApi.get().catch(() => ({ holdings })),
+        walletApi.get(),
+        portfolioApi.get(),
       ]);
       setWalletBalance(walletRes?.balance || 0);
       setHoldings(portfolioRes?.holdings || []);
+
+      setTimeout(() => {
+        navigate("/portfolio");
+      }, 3000);
       setQuantity("");
     } catch (err: any) {
-      toast.error(err.message || "Failed to execute trade");
+      // Parse error message from response
+      let errorMsg = err.message || "Failed to execute trade";
+      try {
+        if (err.message.includes("within")) {
+          // Price validation error from backend
+          errorMsg = err.message;
+        }
+      } catch {}
+      toast.error(errorMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -262,6 +324,13 @@ export default function Trade() {
           </DialogDescription>
         </DialogContent>
       </Dialog>
+
+      {!isMarketOpen && (
+        <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-4 text-center">
+          <p className="text-red-400 font-semibold text-lg">🔒 Market Closed</p>
+          <p className="text-red-300 text-sm mt-1">Trading is disabled. Market will open for new orders when admin resumes trading.</p>
+        </div>
+      )}
 
       <div>
         <h1 className="text-3xl font-bold">Trade</h1>
@@ -405,26 +474,6 @@ export default function Trade() {
                         </div>
                       </div>
                     )}
-
-                    <div className="space-y-2">
-                      <Label htmlFor="timeInForce">
-                        Time in Force
-                      </Label>
-                      <Select
-                        value={timeInForce}
-                        onValueChange={setTimeInForce}
-                      >
-                        <SelectTrigger className="bg-input-background border-border">
-                          <SelectValue placeholder="Time in Force" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-popover border-border">
-                          <SelectItem value="day">Day</SelectItem>
-                          <SelectItem value="gtc">
-                            Good 'Til Cancelled
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
                   </div>
                 </div>
               </Tabs>
@@ -511,7 +560,7 @@ export default function Trade() {
                           : "bg-red-600 hover:bg-red-700"
                       }`}
                       onClick={handlePlaceOrder}
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || !isMarketOpen}
                     >
                       {isSubmitting ? (
                         <Loader2 className="h-6 w-6 animate-spin" />

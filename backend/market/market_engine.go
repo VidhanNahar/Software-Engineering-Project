@@ -81,7 +81,7 @@ func (e *MarketEngine) runLoop() {
 }
 
 func (e *MarketEngine) runCycle(now time.Time) {
-	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 18000*time.Millisecond)
 	defer cancel()
 
 	isOpen, err := e.runner.IsMarketOpen()
@@ -94,23 +94,31 @@ func (e *MarketEngine) runCycle(now time.Time) {
 		return
 	}
 
+	log.Println("🔄 Starting market cycle...")
 	ticks, err := e.runner.SimulateTickCycle(ctx, now.UTC())
 	if err != nil {
-		log.Println("❌ market engine cycle error:", err)
+		log.Printf("❌ market engine cycle error: %v", err)
 		return
 	}
 
 	if len(ticks) > 0 {
-		log.Printf("📊 Market cycle: generated %d ticks, publishing...", len(ticks))
+		log.Printf("✅ Market cycle: generated %d ticks, publishing...", len(ticks))
 		e.broadcaster.PublishTickBatch(ticks)
+	} else {
+		log.Println("⚠️ Market cycle: no ticks generated")
 	}
 
 	stocks, err := e.runner.GetStocks()
 	if err != nil {
-		log.Println("❌ market engine snapshot error:", err)
+		log.Printf("❌ market engine snapshot error: %v", err)
 		return
 	}
-	e.broadcaster.PublishSnapshot(stocks, true)
+	if len(stocks) > 0 {
+		log.Printf("✅ Publishing snapshot of %d stocks", len(stocks))
+		e.broadcaster.PublishSnapshot(stocks, true)
+	} else {
+		log.Println("⚠️ No stocks available for snapshot")
+	}
 
 	symbols := make([]string, 0, len(ticks))
 	for _, t := range ticks {

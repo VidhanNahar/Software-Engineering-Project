@@ -7,9 +7,11 @@ import (
 	"backend-go/store"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -19,10 +21,11 @@ import (
 type TradeHandler struct {
 	store         *store.Store
 	marketService *market.MarketService
+	broadcaster   *market.WebSocketBroadcaster
 }
 
-func NewTradeHandler(s *store.Store, marketService *market.MarketService) *TradeHandler {
-	return &TradeHandler{store: s, marketService: marketService}
+func NewTradeHandler(s *store.Store, marketService *market.MarketService, broadcaster *market.WebSocketBroadcaster) *TradeHandler {
+	return &TradeHandler{store: s, marketService: marketService, broadcaster: broadcaster}
 }
 
 func (h *TradeHandler) getRequester(r *http.Request) (*model.User, error) {
@@ -59,7 +62,7 @@ func (h *TradeHandler) requireAdmin(w http.ResponseWriter, r *http.Request) (*mo
 	return user, true
 }
 
-// BuyStock executes a buy transaction for authenticated user.
+// BuyStock executes a buy transaction or creates pending limit order for authenticated user.
 func (h *TradeHandler) BuyStock(w http.ResponseWriter, r *http.Request) {
 	user, ok := h.requireTradableUser(w, r)
 	if !ok {
@@ -83,7 +86,62 @@ func (h *TradeHandler) BuyStock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.store.ExecuteBuyTx(r.Context(), store.TradeRequest{UserID: user.UserID, StockID: req.StockID, Quantity: req.Quantity})
+	// Validate order type
+	if req.OrderType == "" {
+		req.OrderType = "MARKET" // Default to market order
+	}
+	if req.OrderType != "MARKET" && req.OrderType != "LIMIT" {
+		http.Error(w, "Invalid order type. Must be MARKET or LIMIT", http.StatusBadRequest)
+		return
+	}
+
+	// Validate limit price for limit orders
+	if req.OrderType == "LIMIT" && req.PricePerStock < 0 {
+		http.Error(w, "Limit price must be greater than or equal to 0", http.StatusBadRequest)
+		return
+	}
+
+	// For limit orders, check if price is favorable
+	if req.OrderType == "LIMIT" {
+		// Get current market price
+		stock, err := h.store.GetStockByID(req.StockID)
+		if err != nil {
+			http.Error(w, "Stock not found", http.StatusNotFound)
+			return
+		}
+
+		currentPrice := stock.Price
+
+		// For BUY LIMIT: execute only if current price <= limit price
+		if currentPrice > req.PricePerStock {
+			// Price not favorable - create pending order
+			if req.TimeInForce == "" {
+				req.TimeInForce = "DAY"
+			}
+
+			orderID, err := h.store.CreatePendingOrder(r.Context(), user.UserID, req.StockID, "BUY", req.PricePerStock, req.Quantity, req.TimeInForce)
+			if err != nil {
+				http.Error(w, "Failed to create pending order", http.StatusInternalServerError)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			json.NewEncoder(w).Encode(map[string]any{
+				"message":     "Buy limit order created and pending",
+				"order_id":    orderID,
+				"stock_id":    req.StockID,
+				"quantity":    req.Quantity,
+				"limit_price": req.PricePerStock,
+				"status":      "PENDING",
+				"note":        fmt.Sprintf("Order will execute when price drops to ₹%.2f or lower", req.PricePerStock),
+			})
+			return
+		}
+		// Price is favorable - fall through to execute immediately
+	}
+
+	err = h.store.ExecuteBuyTx(r.Context(), store.TradeRequest{UserID: user.UserID, StockID: req.StockID, Quantity: req.Quantity, PricePerStock: req.PricePerStock})
 	if err != nil {
 		switch {
 		case errors.Is(err, store.ErrInsufficientBalance):
@@ -105,7 +163,7 @@ func (h *TradeHandler) BuyStock(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// SellStock executes a sell transaction for authenticated user.
+// SellStock executes a sell transaction or creates pending limit order for authenticated user.
 func (h *TradeHandler) SellStock(w http.ResponseWriter, r *http.Request) {
 	user, ok := h.requireTradableUser(w, r)
 	if !ok {
@@ -129,7 +187,62 @@ func (h *TradeHandler) SellStock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.store.ExecuteSellTx(r.Context(), store.TradeRequest{UserID: user.UserID, StockID: req.StockID, Quantity: req.Quantity})
+	// Validate order type
+	if req.OrderType == "" {
+		req.OrderType = "MARKET" // Default to market order
+	}
+	if req.OrderType != "MARKET" && req.OrderType != "LIMIT" {
+		http.Error(w, "Invalid order type. Must be MARKET or LIMIT", http.StatusBadRequest)
+		return
+	}
+
+	// Validate limit price for limit orders
+	if req.OrderType == "LIMIT" && req.PricePerStock < 0 {
+		http.Error(w, "Limit price must be greater than or equal to 0", http.StatusBadRequest)
+		return
+	}
+
+	// For limit orders, check if price is favorable
+	if req.OrderType == "LIMIT" {
+		// Get current market price
+		stock, err := h.store.GetStockByID(req.StockID)
+		if err != nil {
+			http.Error(w, "Stock not found", http.StatusNotFound)
+			return
+		}
+
+		currentPrice := stock.Price
+
+		// For SELL LIMIT: execute only if current price >= limit price
+		if currentPrice < req.PricePerStock {
+			// Price not favorable - create pending order
+			if req.TimeInForce == "" {
+				req.TimeInForce = "DAY"
+			}
+
+			orderID, err := h.store.CreatePendingOrder(r.Context(), user.UserID, req.StockID, "SELL", req.PricePerStock, req.Quantity, req.TimeInForce)
+			if err != nil {
+				http.Error(w, "Failed to create pending order", http.StatusInternalServerError)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			json.NewEncoder(w).Encode(map[string]any{
+				"message":     "Sell limit order created and pending",
+				"order_id":    orderID,
+				"stock_id":    req.StockID,
+				"quantity":    req.Quantity,
+				"limit_price": req.PricePerStock,
+				"status":      "PENDING",
+				"note":        fmt.Sprintf("Order will execute when price rises to ₹%.2f or higher", req.PricePerStock),
+			})
+			return
+		}
+		// Price is favorable - fall through to execute immediately
+	}
+
+	err = h.store.ExecuteSellTx(r.Context(), store.TradeRequest{UserID: user.UserID, StockID: req.StockID, Quantity: req.Quantity, PricePerStock: req.PricePerStock})
 	if err != nil {
 		switch {
 		case errors.Is(err, store.ErrInsufficientShares):
@@ -225,6 +338,104 @@ func (h *TradeHandler) GetWallet(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]any{
 		"balance":        balance,
 		"locked_balance": locked,
+	})
+}
+
+// GetPendingOrders returns all pending limit orders for authenticated user.
+func (h *TradeHandler) GetPendingOrders(w http.ResponseWriter, r *http.Request) {
+	user, err := h.getRequester(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	orders, err := h.store.GetPendingOrdersForUser(r.Context(), user.UserID)
+	if err != nil {
+		http.Error(w, "Failed to fetch pending orders", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]any{"pending_orders": orders, "count": len(orders)})
+}
+
+// CancelPendingOrder cancels a pending limit order
+func (h *TradeHandler) CancelPendingOrder(w http.ResponseWriter, r *http.Request) {
+	user, err := h.getRequester(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	orderID := mux.Vars(r)["order_id"]
+	if orderID == "" {
+		http.Error(w, "Missing order_id parameter", http.StatusBadRequest)
+		return
+	}
+
+	orderUUID, err := uuid.Parse(orderID)
+	if err != nil {
+		http.Error(w, "Invalid order_id format", http.StatusBadRequest)
+		return
+	}
+
+	// Verify the order belongs to the user
+	orders, err := h.store.GetPendingOrdersForUser(r.Context(), user.UserID)
+	if err != nil {
+		http.Error(w, "Failed to verify order", http.StatusInternalServerError)
+		return
+	}
+
+	orderFound := false
+	for _, order := range orders {
+		if order.OrderID == orderUUID {
+			orderFound = true
+			break
+		}
+	}
+
+	if !orderFound {
+		http.Error(w, "Order not found or already filled", http.StatusNotFound)
+		return
+	}
+
+	// Cancel the order
+	err = h.store.CancelPendingOrder(r.Context(), orderUUID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]any{
+		"message":  "Pending order canceled successfully",
+		"order_id": orderID,
+	})
+}
+
+// ReleasePendingOrdersOnMarketClose refunds all pending orders when market closes
+// This is called by admin when stopping the market
+func (h *TradeHandler) ReleasePendingOrdersOnMarketClose(w http.ResponseWriter, r *http.Request) {
+	user, ok := h.requireAdmin(w, r)
+	if !ok {
+		return
+	}
+
+	err := h.store.ReleasePendingOrdersOnMarketClose(r.Context())
+	if err != nil {
+		log.Printf("❌ Error releasing pending orders: %v", err)
+		http.Error(w, "Failed to release pending orders", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]any{
+		"message": "All pending orders refunded successfully",
+		"admin":   user.UserName,
+		"time":    time.Now(),
 	})
 }
 
@@ -576,6 +787,11 @@ func (h *TradeHandler) StartMarket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Broadcast market status to all WebSocket clients
+	if h.broadcaster != nil {
+		h.broadcaster.PublishMarketStatus(status.IsOpen)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]any{
@@ -602,6 +818,11 @@ func (h *TradeHandler) StopMarket(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "Failed to stop market", http.StatusInternalServerError)
 		return
+	}
+
+	// Broadcast market status to all WebSocket clients
+	if h.broadcaster != nil {
+		h.broadcaster.PublishMarketStatus(status.IsOpen)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

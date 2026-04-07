@@ -9,7 +9,11 @@ type SnapshotStock = {
 
 function websocketUrl(): string {
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-  return `${protocol}://${window.location.host}/ws/stocks`;
+  
+  // Get backend URL from environment variable or default to localhost:8080
+  const backendUrl = import.meta.env.VITE_BACKEND_URL || "localhost:8080";
+  
+  return `${protocol}://${backendUrl}/ws/stocks`;
 }
 
 export function useStockLiveFeed(selectedSymbol: string, basePrice: number, timeframe: Timeframe): LiveFeedState {
@@ -110,7 +114,7 @@ export function useStockLiveFeed(selectedSymbol: string, basePrice: number, time
             }
             
             const target = stocksArray.find((s) => {
-              const symbol = (s.symbol || s.Symbol || "").toUpperCase();
+              const symbol = (s.symbol || "").toUpperCase();
               return symbol === normalizedSymbol;
             });
             
