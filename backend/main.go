@@ -11,8 +11,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -81,13 +83,44 @@ func main() {
 
 	// Create a http router
 	r := mux.NewRouter()
+	allowedOrigins := map[string]struct{}{
+		"http://20.193.252.172": {},
+	}
+	if frontendOrigin := os.Getenv("FRONTEND_ORIGIN"); frontendOrigin != "" {
+		allowedOrigins[frontendOrigin] = struct{}{}
+	}
+	isAllowedOrigin := func(origin string) bool {
+		if origin == "" {
+			return false
+		}
+		if _, ok := allowedOrigins[origin]; ok {
+			return true
+		}
+
+		parsedOrigin, err := url.Parse(origin)
+		if err != nil {
+			return false
+		}
+
+		hostname := strings.ToLower(parsedOrigin.Hostname())
+		if hostname == "localhost" || hostname == "127.0.0.1" || hostname == "::1" {
+			return true
+		}
+
+		return false
+	}
+	setCORSHeaders := func(w http.ResponseWriter, origin string) {
+		if isAllowedOrigin(origin) {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Add("Vary", "Origin")
+		}
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization, X-Requested-With")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
+	}
 	corsMiddleware := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Replace this with your specific IP or use "*" to allow everything for now
-			w.Header().Set("Access-Control-Allow-Origin", "http://20.193.252.172")
-			w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-			w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization, X-Requested-With")
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			setCORSHeaders(w, r.Header.Get("Origin"))
 
 			// 2. Handle the Preflight (OPTIONS) request
 			if r.Method == "OPTIONS" {
@@ -107,6 +140,10 @@ func main() {
 	r.Use(corsMiddleware)
 	r.Use(middleware.SelectiveTimeoutMiddleware(30 * time.Second))
 	r.Use(rateLimiter.RateLimitMiddleware(100)) // 100 requests per minute
+	r.PathPrefix("/").Methods(http.MethodOptions).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		setCORSHeaders(w, r.Header.Get("Origin"))
+		w.WriteHeader(http.StatusNoContent)
+	})
 
 	broadcaster := market.NewWebSocketBroadcaster()
 	marketService := market.NewMarketService(s, broadcaster)

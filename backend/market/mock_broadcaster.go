@@ -7,6 +7,7 @@ import (
 	"log"
 	"math"
 	"math/rand"
+	"sync/atomic"
 	"time"
 )
 
@@ -16,6 +17,7 @@ type MockPriceBroadcaster struct {
 	store       *store.Store
 	stocks      []model.StockQuote
 	stopCh      chan struct{}
+	matching    atomic.Bool
 }
 
 func NewMockPriceBroadcaster(broadcaster *WebSocketBroadcaster, s *store.Store) *MockPriceBroadcaster {
@@ -65,8 +67,10 @@ func (m *MockPriceBroadcaster) broadcastMockPrices(rng *rand.Rand) {
 	}
 
 	ticks := make([]model.StockTick, 0, len(m.stocks))
+	ticksByStockID := make(map[string]float64, len(m.stocks))
 
-	for _, stock := range m.stocks {
+	for i := range m.stocks {
+		stock := &m.stocks[i]
 		// Generate realistic price movement
 		volatility := 0.02 // 2% volatility
 		drift := 0.0001    // slight upward drift
@@ -101,6 +105,7 @@ func (m *MockPriceBroadcaster) broadcastMockPrices(rng *rand.Rand) {
 			Volume:     qty,
 			TradeValue: nextPrice * float64(qty),
 		})
+		ticksByStockID[stock.StockID.String()] = nextPrice
 	}
 
 	// Broadcast to WebSocket clients
@@ -121,16 +126,34 @@ func (m *MockPriceBroadcaster) broadcastMockPrices(rng *rand.Rand) {
 			"market_open": isOpen,
 		})
 
-		// Match pending orders if market is open
+		// Run pending-order matching asynchronously so websocket tick cadence stays at 2 seconds.
 		if isOpen {
-			for i, stock := range m.stocks {
-				if i < len(ticks) {
-					tick := ticks[i]
-					if err := m.store.MatchPendingOrders(context.Background(), stock.StockID, tick.Price); err != nil {
-						log.Printf("⚠️ Error matching pending orders for stock %s: %v", stock.Symbol, err)
-					}
-				}
-			}
+			m.matchPendingOrdersAsync(ticksByStockID)
 		}
 	}
+}
+
+func (m *MockPriceBroadcaster) matchPendingOrdersAsync(ticksByStockID map[string]float64) {
+	if !m.matching.CompareAndSwap(false, true) {
+		return
+	}
+
+	go func() {
+		defer m.matching.Store(false)
+
+		for i := range m.stocks {
+			stock := m.stocks[i]
+			price, ok := ticksByStockID[stock.StockID.String()]
+			if !ok {
+				continue
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+			err := m.store.MatchPendingOrders(ctx, stock.StockID, price)
+			cancel()
+			if err != nil {
+				log.Printf("⚠️ Error matching pending orders for stock %s: %v", stock.Symbol, err)
+			}
+		}
+	}()
 }
