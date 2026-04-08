@@ -25,7 +25,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			// Validate Bearer token format "Bearere <token>"
 			headerParts := strings.Fields(authHeader)
 			if len(headerParts) != 2 || headerParts[0] != "Bearer" {
-				http.Error(w, "Invalid authorization header format", http.StatusBadRequest)
+				http.Error(w, "Invalid authorization header format", http.StatusUnauthorized)
 				return
 			}
 			tokenString = headerParts[1]
@@ -48,25 +48,25 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		})
 
 		if err != nil {
-			http.Error(w, "Invalid or expired token", http.StatusBadRequest)
+			http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
 			return
 		}
 
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok {
-			http.Error(w, "Invalid token claims", http.StatusBadRequest)
+			http.Error(w, "Invalid token claims", http.StatusUnauthorized)
 			return
 		}
 
 		userIDStr, ok := claims["userID"].(string)
 		if !ok {
-			http.Error(w, "Invalid userID in token", http.StatusBadRequest)
+			http.Error(w, "Invalid userID in token", http.StatusUnauthorized)
 			return
 		}
 
 		userID, err := uuid.Parse(userIDStr)
 		if err != nil {
-			http.Error(w, "Invalid userID format in token", http.StatusBadRequest)
+			http.Error(w, "Invalid userID format in token", http.StatusUnauthorized)
 			return
 		}
 
