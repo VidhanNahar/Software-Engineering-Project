@@ -1,7 +1,10 @@
 const BASE_URL = import.meta.env.VITE_API_URL || "http://20.193.252.172:8080";
+const BACKEND_HOST = import.meta.env.VITE_BACKEND_URL || "localhost:8080";
+const WS_PROTOCOL = window.location.protocol === "https:" ? "wss" : "ws";
 
 export const API_URL = `${BASE_URL}/api`;
 export const AUTH_API_URL = `${BASE_URL}/auth`;
+export const WS_STOCKS_URL = `${WS_PROTOCOL}://${BACKEND_HOST}/ws/stocks`;
 export const getAuthHeaders = () => {
   const token = localStorage.getItem("access_token");
   return {

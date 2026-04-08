@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { formatPrice } from "../utils/currency";
-import { portfolioApi, transactionApi, walletApi, stockApi, adminApi, ordersApi } from "../api";
+import { portfolioApi, transactionApi, walletApi, stockApi, adminApi, ordersApi, WS_STOCKS_URL } from "../api";
 import { toast } from "sonner";
 
 interface HoldingItem {
@@ -229,8 +229,7 @@ export default function Portfolio() {
     // Establish WebSocket connection for real-time price updates
     let ws: WebSocket | null = null;
     try {
-      const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
-      ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws/stocks`);
+      ws = new WebSocket(WS_STOCKS_URL);
 
       ws.onopen = () => {
         console.log("💫 Portfolio WebSocket connected");

@@ -12,7 +12,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { toast } from "sonner";
 import { formatPrice } from "../utils/currency";
-import { adminApi } from "../api";
+import { adminApi, WS_STOCKS_URL } from "../api";
 import {
   Trash2,
   Edit2,
@@ -91,8 +91,7 @@ export default function Admin() {
     // Establish WebSocket connection for real-time market status updates
     let ws: WebSocket | null = null;
     try {
-      const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
-      ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws/stocks`);
+      ws = new WebSocket(WS_STOCKS_URL);
 
       ws.onopen = () => {
         console.log("💫 Admin WebSocket connected");

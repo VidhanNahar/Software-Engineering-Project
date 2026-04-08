@@ -33,7 +33,7 @@ import { TrendingUp, TrendingDown, AlertCircle, Loader2, CheckCircle2 } from "lu
 import { formatPrice } from "../utils/currency";
 import { toast } from "sonner";
 import { isKycVerified } from "../utils/auth";
-import { stockApi, transactionApi, walletApi, portfolioApi, adminApi, ordersApi } from "../api";
+import { stockApi, transactionApi, walletApi, portfolioApi, adminApi, ordersApi, WS_STOCKS_URL } from "../api";
 
 export default function Trade() {
   const location = useLocation();
@@ -120,8 +120,7 @@ export default function Trade() {
     // Establish WebSocket connection for real-time price updates
     let ws: WebSocket | null = null;
     try {
-      const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
-      ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws/stocks`);
+      ws = new WebSocket(WS_STOCKS_URL);
 
       ws.onopen = () => {
         console.log("💫 Trade WebSocket connected");

@@ -23,7 +23,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { stockApi } from "../api";
+import { stockApi, WS_STOCKS_URL } from "../api";
 
 type MarketStock = {
   stock_id: string;
@@ -92,10 +92,9 @@ export default function MarketOverview() {
 
   useEffect(() => {
     let ws: WebSocket | null = null;
-    const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
 
     try {
-      ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws/stocks`);
+      ws = new WebSocket(WS_STOCKS_URL);
 
       ws.onopen = () => setWsConnected(true);
       ws.onclose = () => setWsConnected(false);

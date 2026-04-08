@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatPrice } from "../utils/currency";
-import { portfolioApi, watchlistApi, stockApi, walletApi } from "../api";
+import { portfolioApi, watchlistApi, stockApi, walletApi, WS_STOCKS_URL } from "../api";
 
 interface WatchlistItem {
   symbol: string;
@@ -225,8 +225,7 @@ export default function Dashboard() {
 
     let ws: WebSocket | null = null;
     try {
-      const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
-      ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws/stocks`);
+      ws = new WebSocket(WS_STOCKS_URL);
 
       ws.onopen = () => {
         console.log("💫 Dashboard WebSocket connected");
