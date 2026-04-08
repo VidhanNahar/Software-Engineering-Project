@@ -15,6 +15,7 @@ var migrationFiles = []string{
 	"alerts_notifications_upgrade.sql",
 	"market_status.sql",
 	"stock_ticks_candles.sql",
+	"pending_orders.sql",
 }
 
 // RunAutoSeeder applies SQL migrations at startup so new developers do not need

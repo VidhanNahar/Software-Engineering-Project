@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS pending_orders (
     order_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    stock_id UUID NOT NULL REFERENCES stocks(stock_id) ON DELETE CASCADE,
+    stock_id UUID NOT NULL REFERENCES stock(stock_id) ON DELETE CASCADE,
     order_type VARCHAR(10) NOT NULL CHECK (order_type IN ('BUY', 'SELL')),
     limit_price DECIMAL(15, 2) NOT NULL CHECK (limit_price > 0),
     quantity INT NOT NULL CHECK (quantity > 0),
