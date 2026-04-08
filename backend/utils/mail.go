@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"crypto/tls"
 	"fmt"
 	"math/rand/v2"
 	"net"
@@ -59,31 +60,31 @@ func SendOTP(userEmail, userName, otp string) error {
 <html>
 <body style="font-family: Arial, sans-serif; background-color: #f4f6f8; padding: 20px;">
     <div style="max-width: 600px; margin: auto; background: #ffffff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-        
+
         <h2 style="color: #2c3e50; text-align: center;">Welcome to FinXGrow 🚀</h2>
-        
+
         <p>Hi <b>%s</b>,</p>
-        
+
         <p>Thank you for joining <b>FinXGrow</b> — your partner in smart financial growth.</p>
-        
+
         <p>Please use the following One-Time Password (OTP) to verify your account:</p>
-        
+
         <div style="text-align: center; margin: 20px 0;">
             <span style="font-size: 32px; font-weight: bold; color: #27ae60; letter-spacing: 3px; font-family: 'Courier New', monospace;">
                 %s
             </span>
         </div>
-        
+
         <p>This OTP is valid for <b>10 minutes</b> and can only be used once.</p>
-        
+
         <p style="color: #e74c3c;"><b>⚠️ Security Notice:</b> Do not share this code with anyone, including FinXGrow staff.</p>
-        
+
         <hr style="border: none; border-top: 1px solid #ecf0f1;">
-        
+
         <p style="font-size: 12px; color: #7f8c8d;">
             If you did not request this email, please ignore it and do not share this OTP.
         </p>
-        
+
         <p>Best regards,<br><b>Team FinXGrow</b><br><em>Empowering Your Financial Growth 📈</em></p>
     </div>
 </body>
@@ -97,7 +98,7 @@ func SendOTP(userEmail, userName, otp string) error {
 	auth := smtp.PlainAuth("", from, password, host)
 
 	// Dial with timeout to prevent hanging connections
-	conn, err := net.DialTimeout("tcp", host+":"+port, 10*time.Second)
+	conn, err := net.DialTimeout("tcp4", host+":"+port, 30*time.Second)
 	if err != nil {
 		return fmt.Errorf("failed to connect to SMTP server: %w", err)
 	}
@@ -112,7 +113,8 @@ func SendOTP(userEmail, userName, otp string) error {
 
 	// Start TLS if supported
 	if ok, _ := client.Extension("STARTTLS"); ok {
-		if err := client.StartTLS(nil); err != nil {
+		config := &tls.Config{ServerName: host}
+		if err := client.StartTLS(config); err != nil {
 			return fmt.Errorf("failed to start TLS: %w", err)
 		}
 	}
