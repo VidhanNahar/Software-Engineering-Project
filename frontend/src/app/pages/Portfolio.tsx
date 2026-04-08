@@ -8,6 +8,13 @@ import {
 } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
+import {
   ArrowUpRight,
   ArrowDownRight,
   TrendingUp,
@@ -17,7 +24,7 @@ import {
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { formatPrice } from "../utils/currency";
-import { portfolioApi, transactionApi, walletApi, stockApi, adminApi } from "../api";
+import { portfolioApi, transactionApi, walletApi, stockApi, adminApi, ordersApi } from "../api";
 import { toast } from "sonner";
 
 interface HoldingItem {
@@ -35,6 +42,7 @@ interface HoldingItem {
 
 interface TradeHistoryItem {
   transaction_id?: string;
+  stock_id?: string;
   symbol: string;
   type?: string;
   transaction_type?: string;
@@ -47,29 +55,66 @@ interface TradeHistoryItem {
 
 interface WalletData {
   balance: number;
+  locked_balance?: number;
 }
+
+interface PendingOrderItem {
+  order_id: string;
+  stock_id: string;
+  order_type: string;
+  limit_price: number;
+  quantity: number;
+  filled_quantity: number;
+  status: string;
+  created_at?: string;
+}
+
+const normalizePendingOrder = (order: any): PendingOrderItem => ({
+  order_id: order.order_id ?? order.OrderID,
+  stock_id: order.stock_id ?? order.StockID,
+  order_type: order.order_type ?? order.OrderType,
+  limit_price: Number(order.limit_price ?? order.LimitPrice ?? 0),
+  quantity: Number(order.quantity ?? order.Quantity ?? 0),
+  filled_quantity: Number(order.filled_quantity ?? order.FilledQuantity ?? 0),
+  status: (order.status ?? order.Status ?? "").toString(),
+  created_at: order.created_at ?? order.CreatedAt,
+});
+
+const normalizeStatus = (status?: string) =>
+  (status || "").toString().trim().toUpperCase();
+
+const isActiveOrder = (order: PendingOrderItem) => {
+  const s = normalizeStatus(order.status);
+  return s === "PENDING" || s === "PARTIALLY_FILLED" || s === "PENDING_APPROVAL";
+};
 
 export default function Portfolio() {
   const navigate = useNavigate();
   const [holdings, setHoldings] = useState<HoldingItem[]>([]);
   const [trades, setTrades] = useState<TradeHistoryItem[]>([]);
-  const [wallet, setWallet] = useState<WalletData>({ balance: 0 });
+  const [wallet, setWallet] = useState<WalletData>({ balance: 0, locked_balance: 0 });
   const [loading, setLoading] = useState(true);
+  const [pendingOrders, setPendingOrders] = useState<PendingOrderItem[]>([]);
+  const [stockLookup, setStockLookup] = useState<Record<string, { symbol: string; name: string; price?: number }>>({});
+  const [activityFilter, setActivityFilter] = useState<"all" | "pending" | "market">("all");
+  const [cancelingOrderId, setCancelingOrderId] = useState<string | null>(null);
   const [isMarketOpen, setIsMarketOpen] = useState(true);
   const isMarketOpenRef = useRef(true);
 
   useEffect(() => {
     const fetchPortfolioData = async () => {
       try {
-        const [portRes, transRes, walletRes, stocksRes] = await Promise.all([
+        const [portRes, transRes, walletRes, stocksRes, pendingRes] = await Promise.all([
           portfolioApi.get().catch(() => ({ holdings: [] })),
           transactionApi.getHistory().catch(() => ({ history: [] })),
           walletApi.get().catch(() => ({ balance: 0 })),
           stockApi.getAll().catch(() => ({ stocks: [] })),
+          ordersApi.getPendingOrders().catch(() => ({ pending_orders: [] })),
         ]);
 
         const stockMap = new Map();
         if (stocksRes.stocks) {
+          const stockEntries: Record<string, { symbol: string; name: string; price?: number }> = {};
           stocksRes.stocks.forEach(
             (s: {
               stock_id: string;
@@ -78,8 +123,14 @@ export default function Portfolio() {
               symbol?: string;
             }) => {
               stockMap.set(s.stock_id, s);
+              stockEntries[s.stock_id] = {
+                symbol: s.symbol || "STK",
+                name: s.name || "Unknown Stock",
+                price: s.price,
+              };
             },
           );
+          setStockLookup(stockEntries);
         }
 
         let fetchedHoldings = portRes?.holdings || [];
@@ -134,9 +185,14 @@ export default function Portfolio() {
           };
         });
         setTrades(enrichedTrades);
-        setWallet(walletRes || { balance: 0 });
+        setWallet({
+          balance: Number(walletRes?.balance ?? 0),
+          locked_balance: Number(walletRes?.locked_balance ?? 0),
+        });
+        const rawLimitOrders =
+          pendingRes?.limit_orders || pendingRes?.pending_orders || pendingRes?.orders || [];
+        setPendingOrders(rawLimitOrders.map(normalizePendingOrder));
       } catch (error) {
-        console.error("Failed to load portfolio", error);
         toast.error("Failed to load portfolio data");
       } finally {
         setLoading(false);
@@ -144,6 +200,8 @@ export default function Portfolio() {
     };
 
     fetchPortfolioData();
+
+    const refreshInterval = setInterval(fetchPortfolioData, 15000);
 
     // Fetch initial market status
     const fetchMarketStatus = async () => {
@@ -204,6 +262,25 @@ export default function Portfolio() {
           if (data.type === "stock_tick" || data.type === "stocks_snapshot") {
             const incomingStocks = data.stocks || data.ticks || [];
 
+            setStockLookup((prev) => {
+              const next = { ...prev };
+              for (const tick of incomingStocks) {
+                if (!tick || typeof tick.symbol !== "string" || typeof tick.price !== "number") {
+                  continue;
+                }
+                const key = Object.keys(next).find(
+                  (stockId) => next[stockId]?.symbol === tick.symbol,
+                );
+                if (key) {
+                  next[key] = {
+                    ...next[key],
+                    price: tick.price,
+                  };
+                }
+              }
+              return next;
+            });
+
             setHoldings((prev) =>
               prev.map((holding) => {
                 const updated = incomingStocks.find(
@@ -249,11 +326,32 @@ export default function Portfolio() {
     }
 
     return () => {
+      clearInterval(refreshInterval);
       if (ws) {
         ws.close();
       }
     };
   }, []);
+
+  const handleCancelPendingOrder = async (orderId: string) => {
+    try {
+      setCancelingOrderId(orderId);
+      await ordersApi.cancelPendingOrder(orderId);
+      toast.success("Pending order cancelled");
+      const pendingRes = await ordersApi.getPendingOrders().catch(() => ({ pending_orders: [] }));
+      const rawLimitOrders = pendingRes?.limit_orders || pendingRes?.pending_orders || pendingRes?.orders || [];
+      setPendingOrders(rawLimitOrders.map(normalizePendingOrder));
+      const walletRes = await walletApi.get().catch(() => ({ balance: 0, locked_balance: 0 }));
+      setWallet({
+        balance: Number(walletRes?.balance ?? 0),
+        locked_balance: Number(walletRes?.locked_balance ?? 0),
+      });
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to cancel pending order");
+    } finally {
+      setCancelingOrderId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -276,6 +374,25 @@ export default function Portfolio() {
       percent: totalValue > 0 ? (holding.totalValue / totalValue) * 100 : 0,
     }))
     .filter((h) => h.value > 0);
+
+  const getStockLabel = (stockId?: string, fallbackSymbol?: string) => {
+    if (fallbackSymbol) return fallbackSymbol;
+    return stockLookup[stockId || ""]?.symbol || holdings.find((h: any) => h.stock_id === stockId)?.symbol || "STK";
+  };
+
+  const getStockName = (stockId?: string) =>
+    stockLookup[stockId || ""]?.name || "Unknown Stock";
+
+  const getStockCurrentPrice = (stockId?: string) =>
+    stockLookup[stockId || ""]?.price ?? 0;
+
+  const visiblePendingOrders = pendingOrders.filter(isActiveOrder);
+
+  const visibleMarketTrades = trades.filter((t: any) => {
+    const mode = (t.order_type || t.mode || "").toString().toUpperCase();
+    if (mode) return mode === "MARKET";
+    return true;
+  });
 
   const COLORS = [
     "#3b82f6",
@@ -303,10 +420,22 @@ export default function Portfolio() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
-            <Filter className="w-4 h-4 mr-2" />
-            Filter
-          </Button>
+          <div className="w-[220px]">
+            <Select
+              value={activityFilter}
+              onValueChange={(v: "all" | "pending" | "market") => setActivityFilter(v)}
+            >
+              <SelectTrigger>
+                <Filter className="w-4 h-4 mr-2" />
+                <SelectValue placeholder="Filter" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Activity</SelectItem>
+                <SelectItem value="pending">List Orders</SelectItem>
+                <SelectItem value="market">Market Orders</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <Button variant="outline">
             <Download className="w-4 h-4 mr-2" />
             Export
@@ -326,6 +455,9 @@ export default function Portfolio() {
             <p className="text-sm text-muted-foreground">Buying Power</p>
             <p className="text-2xl font-bold mt-1">
               {formatPrice(wallet.balance)}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Locked: {formatPrice(wallet.locked_balance || 0)}
             </p>
           </CardContent>
         </Card>
@@ -518,16 +650,83 @@ export default function Portfolio() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Recent Trades</CardTitle>
+              <CardTitle>
+                {activityFilter === "pending"
+                  ? "List Orders"
+                  : activityFilter === "market"
+                    ? "Market Orders"
+                    : "Recent Trades"}
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              {trades.length === 0 ? (
+              {activityFilter === "pending" ? (
+                visiblePendingOrders.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-4">
+                    No list orders
+                  </p>
+                ) : (
+                  <div className="space-y-4">
+                    {visiblePendingOrders.map((order) => (
+                      <div
+                        key={order.order_id}
+                        className="flex items-center justify-between p-3 border border-border rounded-lg"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-2 py-0.5 rounded text-xs font-semibold uppercase ${
+                                order.order_type === "BUY"
+                                  ? "bg-green-500/20 text-green-500"
+                                  : "bg-red-500/20 text-red-500"
+                              }`}
+                            >
+                              {order.order_type}
+                            </span>
+                            <span className="font-bold">
+                              {getStockLabel(order.stock_id)}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {getStockName(order.stock_id)}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Current: {formatPrice(getStockCurrentPrice(order.stock_id))} • Limit: {formatPrice(Number(order.limit_price || 0))} • Qty: {order.quantity - order.filled_quantity}
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <span className="text-xs text-muted-foreground">
+                            {normalizeStatus(order.status) || "UNKNOWN"}
+                          </span>
+                          {isActiveOrder(order) ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleCancelPendingOrder(order.order_id)}
+                              disabled={cancelingOrderId === order.order_id || !isMarketOpen}
+                            >
+                              {!isMarketOpen
+                                ? "Market Closed"
+                                : cancelingOrderId === order.order_id
+                                  ? "Cancelling..."
+                                  : "Cancel"}
+                            </Button>
+                          ) : (
+                            <Button size="sm" variant="outline" disabled>
+                              Not cancellable
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : (activityFilter === "market" ? visibleMarketTrades : trades).length === 0 ? (
                 <p className="text-muted-foreground text-center py-4">
-                  No recent activity
+                  No activity found for this filter
                 </p>
               ) : (
                 <div className="space-y-4">
-                  {trades.slice(0, 5).map((trade, i) => (
+                  {(activityFilter === "market" ? visibleMarketTrades : trades).slice(0, 8).map((trade, i) => (
                     <div
                       key={i}
                       className="flex items-center justify-between p-3 border border-border rounded-lg"
@@ -541,10 +740,10 @@ export default function Portfolio() {
                                 : "bg-red-500/20 text-red-500"
                             }`}
                           >
-                            {trade.type}
+                            {trade.type || trade.transaction_type || "EXECUTED"}
                           </span>
                           <span className="font-bold">
-                            {trade.symbol || "STK"}
+                            {trade.symbol || getStockLabel(trade.stock_id, trade.symbol)}
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">

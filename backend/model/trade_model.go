@@ -52,6 +52,8 @@ type PortfolioPosition struct {
 	CurrentPrice   float64   `json:"current_price"`
 	PositionValue  float64   `json:"position_value"`
 	LastUpdateTime time.Time `json:"last_update_time"`
+	AvailableQty   int       `json:"available_qty"`
+	PendingSellQty int       `json:"pending_sell_qty"`
 }
 
 // OrderRecord is a transaction history entry from orders table.

@@ -231,15 +231,62 @@ func (s *Store) CompleteKYC(userID uuid.UUID, aadharID *string, panID *string) e
 }
 
 func (s *Store) GetWalletByUser(userID uuid.UUID) (float64, float64, error) {
+	tx, err := s.db.BeginTx(context.Background(), &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return 0, 0, err
+	}
+	defer tx.Rollback()
+
 	var balance float64
 	var locked float64
-	err := s.db.QueryRow(`SELECT balance, locked_balance FROM wallet WHERE user_id = $1`, userID).Scan(&balance, &locked)
+	err = tx.QueryRow(`SELECT balance, locked_balance FROM wallet WHERE user_id = $1 FOR UPDATE`, userID).Scan(&balance, &locked)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, 0, ErrUserNotFound
 		}
 		return 0, 0, err
 	}
+
+	// Reconcile locked balance with active BUY limit orders (covers legacy orders created before lock logic).
+	var expectedLocked float64
+	err = tx.QueryRow(`
+		SELECT COALESCE(SUM((po.quantity - po.filled_quantity) * po.limit_price *
+			CASE WHEN UPPER(st.currency_code) = 'USD' THEN 83.5 ELSE 1 END), 0)
+		FROM pending_orders po
+		JOIN stock st ON st.stock_id = po.stock_id
+		WHERE po.user_id = $1 AND po.order_type = 'BUY' AND po.status IN ('PENDING', 'PARTIALLY_FILLED')`, userID).Scan(&expectedLocked)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	if expectedLocked != locked {
+		delta := expectedLocked - locked
+		if delta > 0 {
+			if delta > balance {
+				delta = balance
+			}
+			_, err = tx.Exec(`UPDATE wallet SET balance = balance - $1, locked_balance = locked_balance + $1 WHERE user_id = $2`, delta, userID)
+			if err != nil {
+				return 0, 0, err
+			}
+		} else {
+			releaseAmount := -delta
+			_, err = tx.Exec(`UPDATE wallet SET balance = balance + $1, locked_balance = GREATEST(locked_balance - $1, 0) WHERE user_id = $2`, releaseAmount, userID)
+			if err != nil {
+				return 0, 0, err
+			}
+		}
+
+		err = tx.QueryRow(`SELECT balance, locked_balance FROM wallet WHERE user_id = $1`, userID).Scan(&balance, &locked)
+		if err != nil {
+			return 0, 0, err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, 0, err
+	}
+
 	return balance, locked, nil
 }
 

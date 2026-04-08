@@ -96,8 +96,8 @@ func (s *Store) refundBuyOrder(ctx context.Context, orderID, userID, stockID str
 	remainingQty := quantity - filledQty
 	refundAmount := limitPrice * float64(remainingQty) * conversionRate
 
-	// Refund to wallet
-	_, err = tx.ExecContext(ctx, `UPDATE wallet SET balance = balance + $1 WHERE user_id = $2`, refundAmount, userID)
+	// Refund to wallet and release locked balance
+	_, err = tx.ExecContext(ctx, `UPDATE wallet SET balance = balance + $1, locked_balance = GREATEST(locked_balance - $1, 0) WHERE user_id = $2`, refundAmount, userID)
 	if err != nil {
 		return err
 	}

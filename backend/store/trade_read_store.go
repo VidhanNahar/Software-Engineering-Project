@@ -142,9 +142,29 @@ func (s *Store) GetStocks() ([]model.StockQuote, error) {
 // GetPortfolioByUser returns user holdings with current valuation.
 func (s *Store) GetPortfolioByUser(userID uuid.UUID) ([]model.PortfolioPosition, error) {
 	rows, err := s.db.Query(`
-		SELECT p.user_id, p.stock_id, st.name, st.currency_code, p.quantity, p.price, st.price, (p.quantity * st.price), p.transaction_time
+		SELECT
+			p.user_id,
+			p.stock_id,
+			st.name,
+			st.currency_code,
+			p.quantity,
+			p.price,
+			st.price,
+			(p.quantity * st.price),
+			p.transaction_time,
+			GREATEST(
+				p.quantity - COALESCE(po.pending_sell_qty, 0),
+				0
+			) AS available_qty,
+			COALESCE(po.pending_sell_qty, 0) AS pending_sell_qty
 		FROM portfolio p
 		INNER JOIN stock st ON st.stock_id = p.stock_id
+		LEFT JOIN (
+			SELECT stock_id, user_id, COALESCE(SUM(quantity - filled_quantity), 0) AS pending_sell_qty
+			FROM pending_orders
+			WHERE order_type = 'SELL' AND status IN ('PENDING', 'PARTIALLY_FILLED')
+			GROUP BY stock_id, user_id
+		) po ON po.stock_id = p.stock_id AND po.user_id = p.user_id
 		WHERE p.user_id = $1
 		ORDER BY p.transaction_time DESC`, userID)
 	if err != nil {
@@ -165,6 +185,8 @@ func (s *Store) GetPortfolioByUser(userID uuid.UUID) ([]model.PortfolioPosition,
 			&position.CurrentPrice,
 			&position.PositionValue,
 			&position.LastUpdateTime,
+			&position.AvailableQty,
+			&position.PendingSellQty,
 		); err != nil {
 			return nil, err
 		}

@@ -48,6 +48,7 @@ export default function Trade() {
   const [loading, setLoading] = useState(true);
   const [walletBalance, setWalletBalance] = useState(0);
   const [holdings, setHoldings] = useState<any[]>([]);
+  const [pendingOrders, setPendingOrders] = useState<any[]>([]);
 
   const [orderType, setOrderType] = useState<"buy" | "sell">(
     state?.type || "buy",
@@ -60,6 +61,7 @@ export default function Trade() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [cancelingOrderId, setCancelingOrderId] = useState<string | null>(null);
   const [isMarketOpen, setIsMarketOpen] = useState(true);
   const isMarketOpenRef = useRef(true);
 
@@ -76,6 +78,7 @@ export default function Trade() {
         setStocks(loadedStocks);
         setWalletBalance(walletRes?.balance || 0);
         setHoldings(portfolioRes?.holdings || []);
+        setPendingOrders(portfolioRes?.pending_orders || []);
 
         if (loadedStocks.length > 0) {
           const preselected = state?.symbol
@@ -198,6 +201,29 @@ export default function Trade() {
   const estimatedFee = total * 0.001; // 0.1% fee
   const totalWithFee = total + estimatedFee;
 
+  const refreshPortfolioData = async () => {
+    const [walletRes, portfolioRes] = await Promise.all([
+      walletApi.get().catch(() => ({ balance: 0 })),
+      portfolioApi.get().catch(() => ({ holdings: [], pending_orders: [] })),
+    ]);
+    setWalletBalance(walletRes?.balance || 0);
+    setHoldings(portfolioRes?.holdings || []);
+    setPendingOrders(portfolioRes?.pending_orders || []);
+  };
+
+  const handleCancelPendingOrder = async (orderId: string) => {
+    try {
+      setCancelingOrderId(orderId);
+      await ordersApi.cancelPendingOrder(orderId);
+      toast.success("Pending order cancelled");
+      await refreshPortfolioData();
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to cancel pending order");
+    } finally {
+      setCancelingOrderId(null);
+    }
+  };
+
   const handlePlaceOrder = async () => {
     if (!selectedStockId) {
       toast.error("Please select a stock");
@@ -223,7 +249,9 @@ export default function Trade() {
 
     if (orderType === "sell") {
       const ownedQuantity =
-        holdings.find((h) => h.stock_id === selectedStockId)?.quantity || 0;
+        holdings.find((h) => h.stock_id === selectedStockId)?.available_qty ??
+        holdings.find((h) => h.stock_id === selectedStockId)?.quantity ??
+        0;
       if (qty > ownedQuantity) {
         toast.error("You do not own enough shares to sell");
         return;
@@ -272,12 +300,7 @@ export default function Trade() {
       setIsSuccessDialogOpen(true);
 
       // Refresh wallet & portfolio after trade
-      const [walletRes, portfolioRes] = await Promise.all([
-        walletApi.get(),
-        portfolioApi.get(),
-      ]);
-      setWalletBalance(walletRes?.balance || 0);
-      setHoldings(portfolioRes?.holdings || []);
+      await refreshPortfolioData();
 
       setTimeout(() => {
         navigate("/portfolio");
@@ -306,8 +329,18 @@ export default function Trade() {
     );
   }
 
-  const ownedQuantity =
-    holdings.find((h) => h.stock_id === selectedStockId)?.quantity || 0;
+  const selectedHolding = holdings.find((h) => h.stock_id === selectedStockId);
+  const ownedQuantity = selectedHolding?.quantity || 0;
+  const availableQuantity = selectedHolding?.available_qty ?? ownedQuantity;
+  const lockedQuantity = selectedHolding?.pending_sell_qty || 0;
+  const pendingLimitOrders = pendingOrders.filter(
+    (o) => o.status === "PENDING" || o.status === "PARTIALLY_FILLED",
+  );
+
+  const getStockDisplay = (stockId: string) => {
+    const stock = stocks.find((s) => s.stock_id === stockId);
+    return stock ? `${stock.symbol} - ${stock.name}` : stockId;
+  };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -447,7 +480,8 @@ export default function Trade() {
                       />
                       {orderType === "sell" && (
                         <p className="text-xs text-muted-foreground">
-                          Available to sell: {ownedQuantity}
+                          Available to sell: {availableQuantity}
+                          {lockedQuantity > 0 ? ` (Locked in pending limit sell: ${lockedQuantity})` : ""}
                         </p>
                       )}
                     </div>
@@ -594,6 +628,43 @@ export default function Trade() {
               </div>
             </CardContent>
           </Card>
+
+          {pendingLimitOrders.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Pending Limit Orders</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 text-sm">
+                  {pendingLimitOrders.map((order) => (
+                    <div key={order.order_id} className="flex items-center justify-between rounded-md border border-border p-2">
+                      <div>
+                        <p className="font-medium">{order.order_type} • Qty: {order.quantity - order.filled_quantity}</p>
+                        <p className="text-muted-foreground">{getStockDisplay(order.stock_id)}</p>
+                        <p className="text-muted-foreground">Limit: {formatPrice(order.limit_price)}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <p className="text-muted-foreground">{order.status}</p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={cancelingOrderId === order.order_id || !isMarketOpen}
+                          onClick={() => handleCancelPendingOrder(order.order_id)}
+                        >
+                          {!isMarketOpen
+                            ? "Market Closed"
+                            : cancelingOrderId === order.order_id
+                              ? "Cancelling..."
+                              : "Cancel"}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>
